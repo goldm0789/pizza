@@ -1,0 +1,1499 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>피자나라 경제교실</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- html2pdf.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+    }
+    .animate-scale-up {
+      animation: scaleUp 0.25s ease-out forwards;
+    }
+    @keyframes scaleUp {
+      from { transform: scale(0.95); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    /* 스크롤바 숨기기 (선택사항) */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-orange-50/50 text-slate-800 flex flex-col selection:bg-orange-200">
+
+  <div id="app" class="flex-grow flex flex-col">
+    <!-- 동적 화면이 그려지는 영역 -->
+  </div>
+
+  <!-- Firebase 및 핵심 라이브러리 모듈 -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc, getDocs, collection, onSnapshot, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // ==========================================
+    // 1. Firebase 전용 설정 및 연동 템플릿
+    // ==========================================
+    let firebaseConfig = {
+        apiKey: "AIzaSyBHLe_wG_zRkQTfz_1Rq2CGKrSSGDX4b10",
+        authDomain: "pizza-economy-class.firebaseapp.com",
+        projectId: "pizza-economy-class",
+        storageBucket: "pizza-economy-class.firebasestorage.app",
+        messagingSenderId: "253898972716",
+        appId: "1:253898972716:web:5433d5ec549143c0f37b89"
+    };
+    let appId = 'pizza-economy-class';
+
+    if (typeof __firebase_config !== 'undefined') {
+        firebaseConfig = JSON.parse(__firebase_config);
+    }
+    if (typeof __app_id !== 'undefined') {
+        appId = __app_id;
+    }
+
+    const appInstance = initializeApp(firebaseConfig);
+    const auth = getAuth(appInstance);
+    const db = getFirestore(appInstance);
+
+    // [업데이트 명세]: 예산 한도 대폭 증액
+    const MAX_MAKING_BUDGET = 30000; // 피자 최대 제작 예산 (3만원)
+    const MAX_BUYING_BUDGET = 50000; // 피자 최대 소비 예산 (5만원)
+
+    // [업데이트 명세]: 신규 9종 포함 총 18종 (+2종 추가하여 총 20종의 풍부한 재료)
+    const INGREDIENTS = [
+      // 소스류 (도우 바닥 색상 변경)
+      { id: 'tomato_sauce', name: '토마토 소스', price: 1000, emoji: '🍅', category: 'sauce' },
+      { id: 'cream_sauce', name: '크림 소스', price: 1500, emoji: '🥛', category: 'sauce' },
+      { id: 'bbq_sauce', name: '바베큐 소스', price: 1800, emoji: '🍯', category: 'sauce' },
+      { id: 'garlic_mayo', name: '갈릭디핑 마요소스', price: 1200, emoji: '💛', category: 'sauce' },
+      
+      // 도우 / 크러스트 엣지 옵션
+      { id: 'cheese_crust', name: '치즈 크러스트 엣지', price: 3000, emoji: '🥯', category: 'edge' },
+      { id: 'sweet_potato_crust', name: '고구마무스 엣지', price: 2500, emoji: '🍠', category: 'edge' },
+
+      // 치즈류
+      { id: 'mozzarella', name: '모짜렐라 치즈 가루', price: 2000, emoji: '🧀', category: 'cheese' },
+      { id: 'cheddar', name: '체다 치즈 큐브', price: 1500, emoji: '💛', category: 'cheese' },
+      { id: 'ricotta', name: '리코타 치즈 덩어리', price: 2500, emoji: '⚪', category: 'cheese' },
+
+      // 고기 / 프리미엄 육류 토핑 (신규 추가 포함)
+      { id: 'hanwoo', name: '명품 한우 토핑', price: 5000, emoji: '🥩', category: 'meat' },
+      { id: 'bulgogi', name: '단짠 숯불 불고기', price: 3500, emoji: '🤎', category: 'meat' }, // 신규
+      { id: 'pork_belly', name: '고소한 대패 삼겹살', price: 3000, emoji: '🍖', category: 'meat' }, // 신규
+      { id: 'bacon', name: '스모크 베이컨', price: 2500, emoji: '🥓', category: 'meat' },
+      { id: 'single_pepperoni', name: '낱개 페퍼로니', price: 500, emoji: '🔴', category: 'meat' }, // 초가성비 신규
+
+      // 해산물 토핑
+      { id: 'shrimp', name: '통통 자숙 새우살', price: 4000, emoji: '🦐', category: 'seafood' },
+      { id: 'squid', name: '쫄깃 오징어링', price: 2000, emoji: '⚪', category: 'seafood' },
+
+      // 채소 / 과일 / 밥 옵션 (신규 추가 포함)
+      { id: 'potato', name: '포슬포슬 감자슬라이스', price: 1500, emoji: '🥔', category: 'veg' }, // 신규
+      { id: 'broccoli', name: '파릇 아삭 브로콜리', price: 1000, emoji: '🥦', category: 'veg' }, // 신규
+      { id: 'rice', name: '고소한 갈릭 쌀밥', price: 1000, emoji: '🍚', category: 'veg' }, // 신규
+      { id: 'onion', name: '신선한 국산 양파', price: 800, emoji: '🧅', category: 'veg' }, // 신규
+      { id: 'mushroom', name: '버섯 슬라이스 단면', price: 1200, emoji: '🍄', category: 'veg' },
+      { id: 'pineapple', name: '슬라이스 파인애플', price: 1500, emoji: '🍍', category: 'veg' },
+      { id: 'single_olive', name: '낱개 블랙 올리브', price: 500, emoji: '🖤', category: 'veg' }, // 초가성비 신규
+
+      // 500원 권 초가성비 사이드 (도우 위에 안 올라감)
+      { id: 'pickle', name: '아삭 피클', price: 500, emoji: '🥒', category: 'side' }, // 초가성비 신규
+      { id: 'cola', name: '시원한 캔콜라', price: 500, emoji: '🥤', category: 'side' }, // 초가성비 신규
+    ];
+
+    // 토핑 배치 기본 좌표 오프셋 (r: 0.18 ~ 0.58 범위 내 분산으로 도우 이탈 방지)
+    const TOPPING_SPREAD_PRESETS = [
+      { r: 0.18, theta: 25 }, { r: 0.35, theta: 85 }, { r: 0.45, theta: 145 },
+      { r: 0.52, theta: 205 }, { r: 0.28, theta: 265 }, { r: 0.40, theta: 325 },
+      { r: 0.48, theta: 55 },  { r: 0.58, theta: 115 }, { r: 0.22, theta: 175 },
+      { r: 0.38, theta: 235 }, { r: 0.50, theta: 295 }, { r: 0.56, theta: 355 },
+      { r: 0.32, theta: 10 },  { r: 0.44, theta: 70 },  { r: 0.52, theta: 130 },
+      { r: 0.25, theta: 190 }, { r: 0.37, theta: 250 }, { r: 0.47, theta: 310 },
+    ];
+
+    // ==========================================
+    // 2. 가상 돔 상태(State) 설계 및 동기화
+    // ==========================================
+    let state = {
+      user: null,
+      role: null,
+      studentName: '',
+      roomCodeInput: '',
+      currentRoomId: null,
+      activeTab: 'main',
+      roomData: null,
+      participants: [],
+      pizzas: [],
+      pizzaName: '',
+      selectedIngredients: [], // 중복 허용 ID__X__Y 형태의 인스턴스 배열
+      hasSubmitted: false,
+      buyerWallet: MAX_BUYING_BUDGET,
+      purchasedPizzas: [],
+      makingQuizAnswer: null,
+      alertMessage: null,
+      activeQuiz: null,
+      studentSessionId: (() => {
+        const saved = sessionStorage.getItem('pizza_student_session_id');
+        if (saved) return saved;
+        const newId = `student_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+        sessionStorage.setItem('pizza_student_session_id', newId);
+        return newId;
+      })()
+    };
+
+    function setState(newState) {
+      state = { ...state, ...newState };
+      render();
+    }
+
+    function showAlert(msg) {
+      setState({ alertMessage: msg });
+    }
+
+    function closeAlert() {
+      setState({ alertMessage: null });
+    }
+
+    function exitRoom() {
+      setState({
+        currentRoomId: null,
+        role: null,
+        roomData: null,
+        participants: [],
+        pizzas: [],
+        hasSubmitted: false,
+        selectedIngredients: [],
+        pizzaName: '',
+        makingQuizAnswer: null
+      });
+    }
+
+    // 재료 문자열 해석기
+    function parseIngredient(ingStr) {
+      const parts = ingStr.split('__');
+      const id = parts[0];
+      const x = parts[1] !== undefined ? parseFloat(parts[1]) : null;
+      const y = parts[2] !== undefined ? parseFloat(parts[2]) : null;
+      return { id, x, y, raw: ingStr };
+    }
+
+    // ==========================================
+    // 3. UI 컴포넌트 렌더링 엔진
+    // ==========================================
+
+    // [업데이트 명세]: 사이드 트레이 시스템 (피클, 콜라는 분리 렌더링)
+    function getPizzaVisualizerHTML(ingredients = [], size = 'large', isEditable = false) {
+      const isLarge = size === 'large';
+      const containerClass = isLarge 
+        ? "w-56 h-56 md:w-64 md:h-64 border-[10px]" 
+        : "w-20 h-20 md:w-24 md:h-24 border-[5px]";
+      
+      const pizzaToppings = [];
+      const sideItems = [];
+
+      ingredients.forEach((ingStr) => {
+        const ingObj = parseIngredient(ingStr);
+        const ing = INGREDIENTS.find(i => i.id === ingObj.id);
+        if (!ing) return;
+
+        if (ing.category === 'side') {
+          sideItems.push(ing);
+        } else {
+          pizzaToppings.push(ingObj);
+        }
+      });
+
+      // 피자 크러스트 엣지 스타일 시각화
+      let crustHTML = '';
+      const activeIds = pizzaToppings.map(o => o.id);
+      if (activeIds.includes('cheese_crust')) {
+        crustHTML += `<div class="absolute inset-0 rounded-full z-10 pointer-events-none ${isLarge ? 'border-[18px]' : 'border-[8px]'} border-[#FCD973]/70"></div>`;
+      }
+      if (activeIds.includes('sweet_potato_crust')) {
+        crustHTML += `<div class="absolute inset-0 rounded-full z-10 pointer-events-none ${isLarge ? 'border-[18px]' : 'border-[8px]'} border-[#FFD700]/60"></div>`;
+      }
+
+      // 소스 백그라운드
+      let sauceHTML = '';
+      if (activeIds.includes('tomato_sauce')) {
+        sauceHTML += `<div class="w-[88%] h-[88%] bg-[#E05A47]/95 rounded-full absolute shadow-inner"></div>`;
+      } else if (activeIds.includes('cream_sauce')) {
+        sauceHTML += `<div class="w-[88%] h-[88%] bg-[#F5F5DC] rounded-full absolute shadow-inner"></div>`;
+      } else if (activeIds.includes('bbq_sauce')) {
+        sauceHTML += `<div class="w-[88%] h-[88%] bg-[#8B4513]/80 rounded-full absolute shadow-inner"></div>`;
+      }
+
+      // 모짜렐라 피자 치즈 가루 베이스
+      let cheeseHTML = '';
+      if (activeIds.includes('mozzarella')) {
+        cheeseHTML += `<div class="w-[80%] h-[80%] bg-[#FAD054]/90 rounded-full absolute opacity-90 shadow-md" style="background-image: radial-gradient(circle, #FCD973 15%, transparent 15%); background-size: ${isLarge ? '24px 24px' : '12px 12px'};"></div>`;
+      }
+
+      // [업데이트 명세]: 다중 토핑 (클러스터 드래그를 지원하는 6조각 흩뿌리기 시스템)
+      let toppingsHTML = '';
+      pizzaToppings.forEach((ingObj, idx) => {
+        const ingId = ingObj.id;
+        const ing = INGREDIENTS.find(i => i.id === ingId);
+        if (!ing || ing.category === 'sauce' || ing.category === 'edge' || ingId === 'mozzarella') return;
+
+        const isDraggable = (ing.category === 'meat' || ing.category === 'seafood' || ing.category === 'veg');
+
+        let cx = ingObj.x;
+        let cy = ingObj.y;
+        if (cx === null || cy === null) {
+          const presetIdx = (INGREDIENTS.findIndex(i => i.id === ingId) * 5 + idx) % TOPPING_SPREAD_PRESETS.length;
+          const pos = TOPPING_SPREAD_PRESETS[presetIdx];
+          cx = Math.round(50 + pos.r * 100 * Math.cos(pos.theta * Math.PI / 180));
+          cy = Math.round(50 + pos.r * 100 * Math.sin(pos.theta * Math.PI / 180));
+        }
+
+        const dragClass = (isEditable && isDraggable) 
+          ? "draggable-topping cursor-move active:scale-110 active:opacity-90 select-none transition-transform" 
+          : "";
+
+        toppingsHTML += `
+          <div class="absolute ${dragClass}" data-index="${idx}" style="left: ${cx}%; top: ${cy}%; width: 0px; height: 0px; display: flex; align-items: center; justify-content: center; z-index: 20; touch-action: none;">
+            ${(() => {
+              let pieces = '';
+              const rPx = isLarge ? 18 : 8; // 클러스터 반지름
+              for (let p = 0; p < 6; p++) {
+                const angle = (p * 60) * (Math.PI / 180);
+                const ox = rPx * Math.cos(angle);
+                const oy = rPx * Math.sin(angle);
+                pieces += `
+                  <div class="absolute select-none font-sans drop-shadow-md" style="transform: translate(-50%, -50%) translate(${ox}px, ${oy}px) rotate(${p * 45}deg); font-size: ${isLarge ? '14px' : '8px'}; pointer-events: none; line-height: 1;">
+                    ${ing.emoji}
+                  </div>
+                `;
+              }
+              return pieces;
+            })()}
+          </div>
+        `;
+      });
+
+      let placeholderHTML = '';
+      if (pizzaToppings.length === 0) {
+        placeholderHTML = `
+          <div class="absolute inset-0 bg-black/5 flex items-center justify-center text-center p-2 rounded-full">
+            <p class="text-orange-950/60 font-black text-[10px] md:text-xs">
+              재료 보관소에서<br>토핑을 담아주세요!
+            </p>
+          </div>
+        `;
+      }
+
+      // 사이드 메뉴 영역 (피클 & 콜라)
+      let sidesHTML = '';
+      if (sideItems.length > 0) {
+        sidesHTML = `
+          <div class="flex flex-col gap-1 items-center justify-center bg-white/90 rounded-2xl p-2 border-2 border-orange-200 shadow-sm ${isLarge ? 'h-fit' : 'scale-75 origin-left'}" style="min-width: 60px;">
+            <span class="text-[9px] font-black text-orange-800 tracking-tighter">사이드</span>
+            <div class="flex flex-wrap gap-1 max-w-[80px] justify-center">
+              ${sideItems.map((ing, sIdx) => `
+                <div class="text-xl md:text-2xl animate-bounce" style="animation-delay: ${sIdx * 0.1}s;" title="${ing.name}">${ing.emoji}</div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="flex items-center justify-center gap-2 md:gap-4 w-full">
+          <div class="rounded-full relative overflow-hidden bg-[#EED8B1] shadow-inner transition-all duration-300 flex items-center justify-center flex-shrink-0 ${containerClass}" style="border-color: #C68B59;">
+            ${crustHTML}
+            ${sauceHTML}
+            ${cheeseHTML}
+            ${toppingsHTML}
+            ${placeholderHTML}
+          </div>
+          ${sidesHTML}
+        </div>
+      `;
+    }
+
+    function render() {
+      const root = document.getElementById('app');
+      if (!root) return;
+
+      let headerHTML = `
+        <header class="bg-orange-100 border-b-4 border-orange-200 shadow-sm sticky top-0 z-40">
+          <div class="max-w-6xl mx-auto px-4 py-3.5 flex flex-wrap justify-between items-center gap-2">
+            <div class="flex items-center space-x-2 cursor-pointer" onclick="window.navTab('main')">
+              <span class="text-3xl hover:rotate-12 transition-transform">🍕</span>
+              <div>
+                <h1 class="text-xl md:text-2xl font-black text-amber-600 tracking-tight flex items-center gap-1.5">
+                  피자나라 경제교실 <span class="text-xs bg-amber-500 text-white font-extrabold px-2 py-0.5 rounded-full shadow-sm">4학년 사회</span>
+                </h1>
+                <p class="text-[10px] text-orange-800/80 font-bold font-mono tracking-widest">Real-time Pizza Scarcity Game</p>
+              </div>
+            </div>
+            <div class="flex items-center space-x-3">
+              <button onclick="window.navTab('${state.activeTab === 'about' ? 'main' : 'about'})')" class="px-3.5 py-1.5 rounded-full bg-orange-200/80 hover:bg-orange-300 text-orange-950 text-xs font-black transition-all shadow-sm">
+                📖 학습 안내도
+              </button>
+              ${state.currentRoomId ? `
+                <div class="flex items-center bg-amber-50 border-2 border-orange-300 rounded-full px-3.5 py-1 text-xs font-black text-orange-700 shadow-inner animate-pulse">
+                  🟢 방 번호: ${state.roomData?.code || '......'}
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        </header>
+      `;
+
+      if (state.activeTab === 'about') {
+        root.innerHTML = headerHTML + `
+          <div class="max-w-4xl mx-auto my-6 p-6 bg-white rounded-3xl border-4 border-orange-200 shadow-xl mx-4 animate-scale-up flex-grow">
+            <h2 class="text-2xl font-black text-orange-950 mb-4 flex items-center">
+              <span class="text-3xl mr-2">📚</span> 자원의 희소성과 선택이란?
+            </h2>
+            <div class="space-y-4 text-slate-600 leading-relaxed text-sm md:text-base">
+              <p>우리가 갖고 싶은 고품질 토핑은 가득하지만, 이를 가질 수 있는 <strong>예산(돈)은 언제나 한계</strong>가 있습니다. 이를 경제학에서 <strong>'자원의 희소성'</strong>이라고 부릅니다.</p>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-4">
+                <div class="p-4 rounded-2xl bg-orange-50/50 border-2 border-orange-100">
+                  <h3 class="font-extrabold text-orange-900 mb-2">🧑‍🍳 1단계: 피자 만들기 (예산 30,000원)</h3>
+                  <p class="text-xs leading-relaxed">나의 최대 재료비 연구 한도는 <strong>30,000원</strong>입니다. 맛있는 재료들을 예산 안에서 수량 조절해 가며 최선의 조합을 발명해 마켓에 입고시켜 보세요!</p>
+                </div>
+                <div class="p-4 rounded-2xl bg-amber-50/50 border-2 border-amber-200">
+                  <h3 class="font-extrabold text-amber-900 mb-2">🛒 2단계: 피자 마켓 (예산 50,000원)</h3>
+                  <p class="text-xs leading-relaxed">친구들의 다양한 피자가 익명으로 출시됩니다! 주어진 용돈 <strong>50,000원</strong> 안에서 가장 마음에 드는 가성비 좋은 피자들을 수량 제한 없이 풍성하게 구매해 보세요.</p>
+                </div>
+              </div>
+              <p class="text-center font-black text-orange-950 text-sm bg-orange-100 p-3 rounded-xl border border-orange-200">우리는 희소성 때문에 '합리적 의사결정'을 거치며 최선의 가치를 결정해야 합니다.</p>
+            </div>
+            <div class="mt-8 text-center">
+              <button onclick="window.navTab('main')" class="px-8 py-3 rounded-full bg-orange-500 hover:bg-orange-600 text-white font-black shadow-lg shadow-orange-200 transform hover:scale-105 active:scale-95 transition-all text-sm">
+                피자가게 시작하기 ➡️
+              </button>
+            </div>
+          </div>
+        ` + getFooterHTML() + getAlertModalHTML();
+        return;
+      }
+
+      let bodyContentHTML = '';
+
+      if (!state.currentRoomId) {
+        bodyContentHTML = `
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 my-6 items-center max-w-6xl w-full mx-auto p-4 flex-grow">
+            <div class="lg:col-span-7 space-y-6 text-center lg:text-left">
+              <div class="inline-block bg-orange-100 text-orange-900 px-4 py-1.5 rounded-full text-xs font-black tracking-widest uppercase border border-orange-200">
+                초등학교 4학년 사회 단원 연계 피자 놀이교실 🍕
+              </div>
+              <h2 class="text-3xl md:text-5xl font-black text-slate-800 leading-tight">
+                피자 가게를 운영하며<br />
+                <span class="text-orange-500">배우는 자원의 희소성!</span>
+              </h2>
+              <p class="text-slate-600 text-sm md:text-base leading-relaxed">
+                맛있고 호화로운 고기, 치즈 크러스트 토핑을 듬뿍 넣고 싶지만 우리에게 주어진 제작 및 쇼핑 비용은 정해져 있어요.<br class="hidden md:inline" />
+                한정된 자원을 배합해 시장의 마음을 사로잡을 시그니처 피자왕이 되어봅시다!
+              </p>
+            </div>
+
+            <div class="lg:col-span-5 bg-white rounded-3xl border-4 border-orange-200 shadow-xl p-6 md:p-8 space-y-6">
+              <div class="space-y-4">
+                <h3 class="text-lg font-black text-slate-800 flex items-center">
+                  <span class="bg-orange-200 text-orange-900 w-6 h-6 rounded-full flex items-center justify-center text-xs font-black mr-2">학생</span>
+                  학생으로 입장하기 👨‍🍳
+                </h3>
+                <div class="space-y-3">
+                  <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">방 인증번호 (교사 화면의 숫자 6자리)</label>
+                    <input type="text" id="roomCodeField" maxlength="6" placeholder="숫자 6자리 입력" value="${state.roomCodeInput}" oninput="window.updateStateField('roomCodeInput', this.value.replace(/[^0-9]/g, ''))" class="w-full px-4 py-3 bg-orange-50/20 rounded-2xl border-2 border-orange-100 focus:border-orange-400 focus:outline-none font-black text-center tracking-widest text-lg text-slate-800 placeholder:text-slate-400 transition-colors">
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">자신의 실명 이름</label>
+                    <input type="text" id="studentNameField" placeholder="예: 이몽룡" value="${state.studentName}" oninput="window.updateStateField('studentName', this.value)" class="w-full px-4 py-3 bg-orange-50/20 rounded-2xl border-2 border-orange-100 focus:border-orange-400 focus:outline-none font-bold text-slate-800 text-sm transition-colors">
+                  </div>
+                  <button onclick="window.handleJoinRoom()" class="w-full py-3.5 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black shadow-lg shadow-orange-200 transform active:scale-95 transition-all text-sm">
+                    피자 클래스룸 입장 🚪
+                  </button>
+                </div>
+              </div>
+
+              <div class="border-t-2 border-dashed border-orange-100 my-4"></div>
+
+              <div class="space-y-4">
+                <h3 class="text-lg font-black text-slate-800 flex items-center">
+                  <span class="bg-slate-800 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs font-black mr-2">교사</span>
+                  교사로 방 만들기 🎓
+                </h3>
+                <button onclick="window.handleCreateRoom()" class="w-full py-3 rounded-2xl bg-slate-800 hover:bg-slate-900 text-white font-black shadow-lg shadow-slate-200 transform active:scale-95 transition-all text-sm">
+                  방 만들기 🛠️
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (state.role === 'teacher') {
+        const sorted = getSortedPizzas();
+        const top3 = sorted.slice(0, 3);
+        const totalTx = state.pizzas.reduce((sum, p) => sum + (p.buyers?.length || 0), 0);
+        const totalRev = state.pizzas.reduce((sum, p) => sum + ((p.buyers?.length || 0) * p.price), 0);
+
+        bodyContentHTML = `
+          <div class="space-y-6 max-w-6xl w-full mx-auto p-4 animate-scale-up flex-grow">
+            <div class="bg-white rounded-3xl border-4 border-orange-200 p-6 shadow-md grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+              <div class="md:col-span-5 space-y-2">
+                <div class="flex items-center space-x-2">
+                  <span class="px-2 py-0.5 text-xs bg-slate-800 text-white font-bold rounded-md">교사용 통제본부</span>
+                  <span class="text-[10px] text-slate-400 font-mono">ID: ${state.roomData?.id}</span>
+                </div>
+                <h2 class="text-2xl font-black text-orange-950 tracking-tight">🏰 피자 마켓 실시간 관리 시스템</h2>
+                <p class="text-xs text-slate-500">전체 흐름을 제어하고 학생들의 경제 실습 수행 결과를 열람합니다.</p>
+              </div>
+              <div class="md:col-span-4 text-center bg-orange-50 p-4 rounded-2xl border-2 border-orange-100 shadow-inner">
+                <p class="text-xs text-orange-800 font-bold">학생들이 입장할 참가 번호</p>
+                <p class="text-4xl font-black text-orange-600 tracking-widest mt-1">${state.roomData?.code}</p>
+              </div>
+              <div class="md:col-span-3 flex flex-col space-y-2.5">
+                <button onclick="window.handleResetRoom()" class="w-full py-2 bg-white hover:bg-orange-50 text-orange-700 text-xs font-black border-2 border-orange-200 rounded-xl transition-all shadow-sm">
+                  🔄 학급 데이터 완전 초기화
+                </button>
+                <button onclick="window.generatePDFReport()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md transition-all flex items-center justify-center space-x-1.5">
+                  <span>📥</span><span>수업 결과 PDF 다운로드</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="bg-orange-100/70 rounded-3xl p-5 border-2 border-orange-200 flex flex-col md:flex-row justify-between items-center gap-4 shadow-sm">
+              <div class="flex items-center space-x-3 w-full md:w-auto">
+                <span class="text-3xl">🚦</span>
+                <div>
+                  <p class="text-xs text-orange-900 font-bold mb-0.5">현재 실습 단계 조율</p>
+                  <p class="text-sm font-black text-slate-800">
+                    ${state.roomData?.status === 'making' ? '🛠️ [1단계] 학생들이 한정 자원 내에서 피자를 제조 중입니다.' : ''}
+                    ${state.roomData?.status === 'selling' ? '🛍️ [2단계] 자유 피자 시장 개방! 친구들의 피자를 구매 중입니다.' : ''}
+                    ${state.roomData?.status === 'ranking' ? '🏆 [3단계] 피드백! 학생 판매 랭킹 및 세부 결과를 발표합니다.' : ''}
+                  </p>
+                </div>
+              </div>
+              <div class="flex space-x-2 w-full md:w-auto overflow-x-auto no-scrollbar pb-1 md:pb-0">
+                <button onclick="window.handleUpdateRoomStatus('making')" class="whitespace-nowrap px-4 py-2.5 rounded-xl text-xs font-black transition-all ${state.roomData?.status === 'making' ? 'bg-orange-500 text-white shadow-md ring-2 ring-orange-300 ring-offset-1' : 'bg-white hover:bg-orange-50 text-orange-600 border border-orange-200'}">1단계: 피자 만들기</button>
+                <button onclick="window.handleUpdateRoomStatus('selling')" class="whitespace-nowrap px-4 py-2.5 rounded-xl text-xs font-black transition-all ${state.roomData?.status === 'selling' ? 'bg-orange-500 text-white shadow-md ring-2 ring-orange-300 ring-offset-1' : 'bg-white hover:bg-orange-50 text-orange-600 border border-orange-200'}">2단계: 마켓 오픈</button>
+                <button onclick="window.handleUpdateRoomStatus('ranking')" class="whitespace-nowrap px-4 py-2.5 rounded-xl text-xs font-black transition-all ${state.roomData?.status === 'ranking' ? 'bg-orange-500 text-white shadow-md ring-2 ring-orange-300 ring-offset-1' : 'bg-white hover:bg-orange-50 text-orange-600 border border-orange-200'}">3단계: 순위 확인</button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <div class="lg:col-span-8 space-y-6">
+                <div class="bg-white rounded-3xl border-4 border-orange-200 p-6 shadow-md">
+                  <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
+                    <h3 class="text-lg font-black text-slate-800">🍕 출시된 피자 모음판 (${state.pizzas.length}개 전체 실시간)</h3>
+                    <span class="text-xs font-bold text-orange-700 bg-orange-100 border border-orange-200 px-3 py-1 rounded-full">
+                      제출진도율: ${state.participants.filter(p => p.role === 'student').length > 0 ? Math.round((state.pizzas.length / state.participants.filter(p => p.role === 'student').length) * 100) : 0}%
+                    </span>
+                  </div>
+                  ${state.pizzas.length === 0 ? `
+                    <div class="text-center py-12 bg-slate-50 rounded-2xl border border-slate-100 text-slate-400 text-sm font-medium">아직 출시 완료된 피자가 없습니다. 학생들의 창작을 대기 중입니다.</div>
+                  ` : `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[450px] overflow-y-auto pr-2 no-scrollbar">
+                      ${state.pizzas.map(pizza => `
+                        <div class="p-4 rounded-2xl bg-orange-50/50 border-2 border-orange-100 flex flex-col justify-between space-y-3 hover:border-orange-300 transition-colors">
+                          <div class="flex justify-between items-start gap-2">
+                            <div class="flex-1 min-w-0">
+                              <span class="text-[10px] font-extrabold text-orange-800 bg-white border border-orange-200 px-2 py-0.5 rounded-full inline-block truncate max-w-full shadow-sm">👩‍🍳 ${pizza.creatorName} 학생의 작품</span>
+                              <!-- [업데이트 명세]: 긴 피자 이름 자동 줄바꿈 -->
+                              <h4 class="font-black text-slate-800 mt-1.5 text-sm break-all break-words leading-tight whitespace-normal">${pizza.name}</h4>
+                            </div>
+                            <span class="text-sm font-black text-orange-950 font-mono flex-shrink-0 bg-white px-2 py-1 rounded-lg border border-orange-100 shadow-sm">
+                              ₩${pizza.price.toLocaleString()}
+                            </span>
+                          </div>
+                          <div class="flex flex-wrap gap-1 max-h-[70px] overflow-y-auto no-scrollbar pt-1">
+                            ${pizza.ingredients.map(ingId => {
+                              const ing = INGREDIENTS.find(i => i.id === parseIngredient(ingId).id);
+                              return ing ? `<span class="text-[10px] bg-white border border-slate-200 px-1.5 py-0.5 rounded-md text-slate-600 font-bold whitespace-nowrap">${ing.emoji} ${ing.name}</span>` : '';
+                            }).join('')}
+                          </div>
+                          <div class="flex justify-end items-center pt-2 border-t border-dashed border-orange-200 text-xs mt-2">
+                            <span class="bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1 rounded-lg font-black shadow-sm">🛒 ${pizza.buyers?.length || 0}판 판매 달성</span>
+                          </div>
+                        </div>
+                      `).join('')}
+                    </div>
+                  `}
+                </div>
+
+                ${state.roomData?.status !== 'making' ? `
+                  <div class="bg-white rounded-3xl border-4 border-slate-200 p-6 shadow-md">
+                    <h3 class="text-lg font-black text-slate-800 mb-4 flex items-center gap-2"><span class="text-2xl">🕵️</span> 피자 시장 거래 총괄 정보 (선생님 전용 비공개)</h3>
+                    <div class="overflow-x-auto rounded-xl border border-slate-200">
+                      <table class="w-full text-left border-collapse text-xs whitespace-nowrap">
+                        <thead>
+                          <tr class="border-b-2 border-slate-200 bg-slate-50 text-slate-700">
+                            <th class="p-3 font-black">제작자</th>
+                            <th class="p-3 font-black">피자 이름</th>
+                            <th class="p-3 font-black">단가 (재료비)</th>
+                            <th class="p-3 font-black text-center">판매량</th>
+                            <th class="p-3 font-black text-center">총 매출</th>
+                            <th class="p-3 font-black">실제 구매자 명단</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          ${sorted.map(pizza => {
+                            const buyerNames = (pizza.buyers || []).map(sid => {
+                              const found = state.participants.find(p => p.studentId === sid);
+                              return found ? found.name : '학생';
+                            }).join(', ');
+                            const totalRevenue = (pizza.buyers?.length || 0) * pizza.price;
+                            return `
+                              <tr class="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                                <td class="p-3 font-black text-orange-700">${pizza.creatorName}</td>
+                                <td class="p-3 font-bold break-all break-words max-w-[150px] whitespace-normal leading-tight">${pizza.name}</td>
+                                <td class="p-3 font-mono font-bold text-slate-600">₩${pizza.price.toLocaleString()}</td>
+                                <td class="p-3 text-center font-black text-emerald-600 text-sm bg-emerald-50/30">${pizza.buyers?.length || 0}판</td>
+                                <td class="p-3 text-center font-black text-orange-600 text-sm bg-orange-50/30">₩${totalRevenue.toLocaleString()}</td>
+                                <td class="p-3 text-slate-500 italic max-w-[200px] truncate" title="${buyerNames}">${buyerNames || '<span class="text-slate-300">미판매</span>'}</td>
+                              </tr>
+                            `;
+                          }).join('')}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ` : ''}
+
+                ${state.roomData?.status === 'ranking' ? `
+                  <div class="bg-gradient-to-br from-orange-50 to-amber-50 rounded-3xl border-4 border-orange-300 p-6 shadow-md">
+                    <h3 class="text-lg font-black text-orange-950 mb-5 text-center">👑 우리 반 피자 판매왕 Top 3 (매출액 기준)</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+                      ${getRankPodiumHTML()}
+                    </div>
+                  </div>
+                ` : ''}
+              </div>
+
+              <div class="lg:col-span-4 bg-white rounded-3xl border-4 border-orange-200 p-6 shadow-md h-fit sticky top-24">
+                <div class="flex justify-between items-center mb-4 pb-2 border-b-2 border-orange-100">
+                  <h3 class="text-md font-black text-slate-800">👥 라이브 접속 학생 (${state.participants.filter(p => p.role === 'student').length}명)</h3>
+                  <span class="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-mono font-bold animate-pulse shadow-sm">LIVE</span>
+                </div>
+                <div class="space-y-2 max-h-[350px] overflow-y-auto pr-1 no-scrollbar">
+                  ${state.participants.filter(p => p.role === 'student').length === 0 ? `
+                    <div class="text-center py-8 text-xs text-slate-400 bg-slate-50 rounded-xl">접속 중인 학생이 없습니다.</div>
+                  ` : state.participants.filter(p => p.role === 'student').map(student => {
+                    const isPizzaCreated = state.pizzas.some(p => p.creatorId === student.studentId);
+                    return `
+                      <div class="flex justify-between items-center p-3 rounded-xl bg-slate-50 border border-slate-100 text-xs hover:border-orange-200 transition-colors">
+                        <span class="font-black text-slate-700">${student.name}</span>
+                        <span class="${isPizzaCreated ? 'bg-orange-100 text-orange-800 border border-orange-200 px-2.5 py-1 rounded-lg font-extrabold text-[10px]' : 'bg-slate-200 text-slate-500 border border-slate-300 px-2.5 py-1 rounded-lg text-[10px] font-bold'}">
+                          ${isPizzaCreated ? '🍕 기획 완료' : '🧑‍🍳 요리 중...'}
+                        </span>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (state.role === 'student') {
+        bodyContentHTML = `
+          <div class="space-y-6 max-w-6xl w-full mx-auto p-4 flex-grow">
+            <div class="bg-white rounded-3xl border-4 border-orange-200 p-5 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div class="space-y-1.5">
+                <div class="flex items-center space-x-2">
+                  <span class="text-orange-600 text-lg md:text-xl font-black tracking-tight">👨‍🍳 ${state.studentName} 학생의 피자 본점</span>
+                  <span class="text-[9px] bg-slate-800 text-white font-black px-2 py-0.5 rounded-md tracking-wider">STUDENT</span>
+                </div>
+                <h3 class="text-xs font-bold text-slate-500">
+                  ${state.roomData?.status === 'making' ? '나의 최대 재료비 범위 내에서 피자 재료를 선택하여 풍성한 피자를 기획해 보세요!' : ''}
+                  ${state.roomData?.status === 'selling' ? '친구들의 익명 피자 상점을 찾아보세요! 예산이 허용하는 한 여러 판을 동시에 마음껏 살 수 있습니다!' : ''}
+                  ${state.roomData?.status === 'ranking' ? '마켓 마감 완료! 과연 우리반 학생 피자 중 가장 인기가 높은 베스트 피자는?' : ''}
+                </h3>
+              </div>
+              <div class="flex flex-wrap gap-2 text-xs w-full md:w-auto">
+                ${state.roomData?.status === 'making' ? `
+                  <span class="bg-orange-100 text-orange-950 border-2 border-orange-300 font-extrabold px-4 py-2 rounded-xl shadow-sm w-full md:w-auto text-center">🛠️ 내 피자 최대 예산: ₩${MAX_MAKING_BUDGET.toLocaleString()}</span>
+                ` : ''}
+                ${state.roomData?.status === 'selling' ? `
+                  <span class="bg-emerald-100 text-emerald-950 border-2 border-emerald-300 font-extrabold px-4 py-2 rounded-xl shadow-sm w-full md:w-auto text-center">🛍️ 현재 쇼핑 예산 잔액: ₩${state.buyerWallet.toLocaleString()}</span>
+                ` : ''}
+              </div>
+            </div>
+
+            ${state.roomData?.status === 'making' ? `
+              <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                <div class="lg:col-span-5 bg-white rounded-3xl border-4 border-orange-200 p-6 shadow-md flex flex-col items-center space-y-6 lg:sticky lg:top-24">
+                  <h3 class="font-black text-slate-800 text-base w-full text-center border-b-2 border-orange-100 pb-3">🍕 내 오븐 피자 굽기 모형</h3>
+                  
+                  <!-- [업데이트 명세]: 드래그 앤 드롭 컨테이너 -->
+                  <div id="pizza-visualizer-container" class="relative w-full flex justify-center py-4">
+                    ${getPizzaVisualizerHTML(state.selectedIngredients, 'large', true)}
+                  </div>
+
+                  <div class="w-full bg-orange-50/80 p-5 rounded-2xl border-2 border-orange-200 space-y-3 text-xs shadow-inner">
+                    <div class="flex justify-between font-bold text-slate-600 items-center">
+                      <span>💰 현재 토핑 재료비 총합:</span>
+                      <span class="text-orange-950 font-black text-base bg-white px-3 py-1 rounded-lg border border-orange-200 shadow-sm">₩${state.selectedIngredients.reduce((sum, ingStr) => sum + (INGREDIENTS.find(i => i.id === parseIngredient(ingStr).id)?.price || 0), 0).toLocaleString()}</span>
+                    </div>
+                    <div class="flex justify-between font-bold text-slate-600 items-center border-t-2 border-dashed border-orange-200 pt-3">
+                      <span>🏷️ 시장 출시 희망 가격:</span>
+                      <span class="text-orange-600 font-extrabold text-base bg-white px-3 py-1 rounded-lg border border-orange-200 shadow-sm">₩${state.selectedIngredients.reduce((sum, ingStr) => sum + (INGREDIENTS.find(i => i.id === parseIngredient(ingStr).id)?.price || 0), 0).toLocaleString()}</span>
+                    </div>
+                    <!-- [업데이트 명세]: 드래그 앤 드롭 가이드 문구 -->
+                    <p class="text-[11px] text-orange-700 font-bold mt-3 text-center flex items-center justify-center gap-1.5 bg-white p-2 rounded-xl border border-orange-100">
+                      <span class="animate-bounce text-base">👉</span> 도우 위 토핑을 터치/클릭하여 원하는 곳으로 마음껏 끌어 옮겨보세요!
+                    </p>
+                  </div>
+                </div>
+
+                <div class="lg:col-span-7 bg-white rounded-3xl border-4 border-orange-200 p-6 shadow-md space-y-6">
+                  <div class="space-y-2 border-b-2 border-orange-100 pb-3">
+                    <h3 class="text-lg font-black text-slate-800">🏪 가상 토핑 연구 보관소</h3>
+                    <p class="text-xs text-slate-500 font-medium">최대 재료비 예산 <strong>${MAX_MAKING_BUDGET.toLocaleString()}원</strong> 범위 안에서 토핑을 중복해서 자유롭게 늘리거나 뺄 수 있습니다.</p>
+                  </div>
+                  ${!state.hasSubmitted ? `
+                    <div class="space-y-6">
+                      <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                        <label class="block text-xs font-black text-slate-700 mb-2">🍕 내 피자 요리 이름 공모</label>
+                        <input type="text" id="pizzaNameField" placeholder="예: 초호화 명품 한우 치즈 갈릭피자" value="${state.pizzaName}" oninput="window.updateStateField('pizzaName', this.value)" class="w-full px-4 py-3 bg-white rounded-xl border-2 border-slate-300 focus:border-orange-400 focus:ring-2 focus:ring-orange-100 focus:outline-none font-bold text-sm text-slate-800 transition-all shadow-inner">
+                      </div>
+                      <div>
+                        <label class="block text-xs font-black text-slate-700 mb-3 bg-orange-100 inline-block px-3 py-1 rounded-lg text-orange-900">🛒 사용할 재료 터치 (1개 추가 시 여러 조각 분산 배치!)</label>
+                        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 md:gap-4 max-h-[400px] overflow-y-auto pr-2 no-scrollbar p-1">
+                          ${INGREDIENTS.map(ing => {
+                            const count = state.selectedIngredients.filter(ingStr => parseIngredient(ingStr).id === ing.id).length;
+                            return `
+                              <div class="p-3 rounded-2xl border-2 flex flex-col justify-between items-center transition-all text-center space-y-2 hover:shadow-md hover:-translate-y-0.5 ${count > 0 ? 'bg-orange-50 border-orange-400 shadow-sm' : 'bg-white border-slate-200'}">
+                                <span class="text-3xl drop-shadow-sm">${ing.emoji}</span>
+                                <div class="text-[11px] leading-tight w-full">
+                                  <span class="font-extrabold block truncate text-slate-800 mb-0.5">${ing.name}</span>
+                                  <span class="text-rose-600 font-bold block">₩${ing.price.toLocaleString()}</span>
+                                </div>
+                                <div class="flex items-center space-x-2 pt-2 border-t border-slate-100 w-full justify-center">
+                                  <button onclick="window.removeIngredient('${ing.id}')" ${count === 0 ? 'disabled' : ''} class="w-7 h-7 rounded-full flex items-center justify-center font-black text-sm transition-colors ${count > 0 ? 'bg-orange-200 text-orange-900 hover:bg-orange-300 shadow-sm' : 'bg-slate-100 text-slate-300 cursor-not-allowed'}">-</button>
+                                  <span class="text-sm font-black w-5 text-center">${count}</span>
+                                  <button onclick="window.addIngredient('${ing.id}')" class="w-7 h-7 rounded-full bg-orange-500 hover:bg-orange-600 text-white font-black flex items-center justify-center text-sm shadow-sm transition-colors">+</button>
+                                </div>
+                              </div>
+                            `;
+                          }).join('')}
+                        </div>
+                      </div>
+                      <div class="pt-4">
+                        <button onclick="window.handleSubmitPizza()" class="w-full py-4 bg-slate-800 hover:bg-slate-900 text-white font-black rounded-2xl shadow-xl shadow-slate-200 transform hover:scale-[1.02] active:scale-95 transition-all text-base tracking-wide">
+                          🍽️ 완성된 피자 마켓에 등록하기
+                        </button>
+                      </div>
+                    </div>
+                  ` : `
+                    <div class="text-center py-16 space-y-5 bg-orange-50/50 rounded-3xl border-2 border-dashed border-orange-200">
+                      <span class="text-7xl animate-bounce inline-block drop-shadow-lg">🍕</span>
+                      <div class="space-y-2">
+                        <h4 class="text-xl font-black text-orange-900">피자가 성공적으로 오븐에 들어갔습니다!</h4>
+                        <p class="text-sm text-slate-600 leading-relaxed max-w-md mx-auto font-medium">선생님께서 피자 마켓을 오픈해주시면, 친구들이 기획한 다양한 피자들을 잔액 범위에서 익명으로 탐색하며 쇼핑을 시작할 수 있습니다. 잠시만 대기해 주세요!</p>
+                      </div>
+                    </div>
+                  `}
+                </div>
+              </div>
+            ` : ''}
+
+            ${state.roomData?.status === 'selling' ? `
+              <div class="space-y-6">
+                <div class="bg-gradient-to-r from-orange-500 to-amber-500 rounded-3xl p-6 md:p-8 text-white shadow-xl space-y-3 relative overflow-hidden">
+                  <div class="absolute top-0 right-0 p-4 opacity-20 text-8xl pointer-events-none">🛒</div>
+                  <div class="flex items-center space-x-3 relative z-10">
+                    <span class="text-3xl bg-white/20 p-2 rounded-xl">🛍️</span>
+                    <h3 class="text-xl md:text-2xl font-black tracking-tight">자율 피자 트레이딩 시장 개방!</h3>
+                  </div>
+                  <p class="text-sm md:text-base leading-relaxed opacity-95 font-medium relative z-10 max-w-2xl">친구들이 아이디어를 내 출시한 수많은 피자들이 모두 익명으로 정렬되어 있습니다. 내 지갑 한도(₩${MAX_BUYING_BUDGET.toLocaleString()}) 내에서 가장 합리적인 가치를 찾아 쇼핑해 보세요!</p>
+                  <div class="mt-4 inline-block bg-white text-orange-600 font-black px-4 py-2 rounded-xl shadow-md text-sm relative z-10">
+                    현재 용돈 잔고: ₩${state.buyerWallet.toLocaleString()}
+                  </div>
+                </div>
+
+                <div class="space-y-4">
+                  <div class="flex flex-wrap justify-between items-center gap-2 border-b-2 border-orange-200 pb-3">
+                    <h3 class="text-lg font-black text-slate-800">🛒 피자 매대 쇼핑하기 (${state.pizzas.length}판 등록됨)</h3>
+                    <span class="text-xs text-orange-700 bg-orange-100 border border-orange-300 px-3 py-1.5 rounded-xl font-bold shadow-sm">전체 익명 블라인드 마켓</span>
+                  </div>
+                  ${state.pizzas.length === 0 ? `
+                    <div class="bg-white rounded-3xl p-16 text-center text-slate-400 text-sm border-2 border-dashed border-slate-200 font-medium">현재 시장에 진열된 피자가 없습니다.</div>
+                  ` : `
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      ${state.pizzas.map(pizza => {
+                        const isMine = pizza.creatorId === state.studentSessionId;
+                        const myPurchaseCount = state.purchasedPizzas.filter(id => id === pizza.id).length;
+                        const canAfford = state.buyerWallet >= pizza.price;
+                        return `
+                          <div class="bg-white rounded-3xl border-4 p-5 flex flex-col justify-between space-y-4 shadow-md transition-all relative hover:shadow-lg ${isMine ? 'border-orange-300 bg-orange-50/30' : 'border-slate-100 hover:border-orange-200'}">
+                            ${isMine ? `<span class="absolute top-4 right-4 bg-orange-500 text-white text-[10px] font-black px-2.5 py-1 rounded-full z-30 shadow-md">내가 만든 피자</span>` : ''}
+                            
+                            <div class="flex justify-center py-2">
+                              ${getPizzaVisualizerHTML(pizza.ingredients, 'small', false)}
+                            </div>
+                            
+                            <div class="space-y-2 border-t border-slate-100 pt-3 flex-grow">
+                              <div class="flex items-start justify-between gap-2">
+                                <!-- [업데이트 명세]: 이름이 길면 줄바꿈 처리 -->
+                                <h4 class="text-base font-black text-slate-800 leading-tight break-all break-words whitespace-normal min-h-[2.5rem] flex items-center">${pizza.name}</h4>
+                                <span class="text-[9px] bg-slate-100 text-slate-600 font-black px-2 py-1 rounded-md flex-shrink-0 whitespace-nowrap border border-slate-200">🧑‍🍳 비밀 셰프</span>
+                              </div>
+                              <div class="flex flex-wrap gap-1 max-h-[60px] overflow-y-auto no-scrollbar pt-1 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                                ${pizza.ingredients.map(ingId => {
+                                  const ing = INGREDIENTS.find(i => i.id === parseIngredient(ingId).id);
+                                  return ing ? `<span class="text-[9px] bg-white border border-slate-200 px-1.5 py-0.5 rounded text-slate-600 font-bold leading-none shadow-sm">${ing.emoji} ${ing.name}</span>` : '';
+                                }).join('')}
+                              </div>
+                            </div>
+
+                            <div class="bg-orange-50/50 rounded-2xl p-3 border border-orange-100 flex justify-between items-center text-xs">
+                              <div>
+                                <p class="text-slate-500 font-bold mb-0.5">내가 구매한 수량</p>
+                                <p class="text-emerald-600 font-black text-base bg-white px-2 py-0.5 rounded border border-emerald-100 inline-block shadow-sm">${myPurchaseCount}판</p>
+                              </div>
+                              <div class="text-right">
+                                <p class="text-slate-500 font-bold mb-0.5">한 판당 가격</p>
+                                <p class="text-orange-600 font-black text-base bg-white px-2 py-0.5 rounded border border-orange-100 inline-block shadow-sm">₩${pizza.price.toLocaleString()}</p>
+                              </div>
+                            </div>
+
+                            <div class="pt-1">
+                              ${isMine ? `
+                                <button disabled class="w-full py-3 bg-slate-100 text-slate-400 rounded-xl text-xs font-bold cursor-not-allowed border border-slate-200">내가 만든 피자는 직접 구매가 불가합니다</button>
+                              ` : `
+                                <div class="flex space-x-2">
+                                  <button onclick="window.handleBuyPizza('${pizza.id}')" ${!canAfford ? 'disabled' : ''} class="flex-grow py-3 rounded-xl text-xs font-black shadow-sm transition-all ${canAfford ? 'bg-slate-800 hover:bg-slate-900 text-white transform hover:-translate-y-0.5' : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'}">
+                                    ${canAfford ? '🛒 피자 1판 구매하기' : '💸 지갑 잔액이 부족해요'}
+                                  </button>
+                                  ${myPurchaseCount > 0 ? `
+                                    <button onclick="window.handleRefundPizza('${pizza.id}')" class="px-4 py-3 bg-white hover:bg-red-50 text-red-600 rounded-xl text-xs font-black transition-all border-2 border-red-100 hover:border-red-300">취소</button>
+                                  ` : ''}
+                                </div>
+                              `}
+                            </div>
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+                  `}
+                </div>
+              </div>
+            ` : ''}
+
+            ${state.roomData?.status === 'ranking' ? `
+              <div class="space-y-8">
+                <div class="bg-gradient-to-br from-orange-500 to-amber-500 rounded-3xl p-8 md:p-12 text-white text-center space-y-4 shadow-xl relative overflow-hidden">
+                  <div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                  <span class="text-6xl md:text-7xl animate-bounce inline-block drop-shadow-lg relative z-10">👑</span>
+                  <h3 class="text-3xl md:text-4xl font-black tracking-tight relative z-10">피자 마켓 경제 시뮬레이션 종료!</h3>
+                  <p class="text-sm md:text-base opacity-95 max-w-xl mx-auto leading-relaxed font-medium relative z-10 bg-black/10 p-3 rounded-xl backdrop-blur-sm border border-white/20">우리 반 최종 피자 판매 랭킹 현황을 확인하고 성찰해 볼까요?</p>
+                </div>
+                <div class="bg-white rounded-3xl border-4 border-orange-200 p-6 md:p-8 shadow-md space-y-8">
+                  <h4 class="text-xl md:text-2xl font-black text-slate-800 text-center flex items-center justify-center gap-2">
+                    <span class="text-3xl">🏆</span> 최종 피자 시장 판매왕 Top 3 <span class="text-sm bg-orange-100 text-orange-800 px-3 py-1 rounded-full border border-orange-200 ml-2 shadow-sm font-bold">(총 매출액 기준)</span>
+                  </h4>
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 items-end pt-4">
+                    ${getRankPodiumHTML()}
+                  </div>
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }
+
+      root.innerHTML = headerHTML + bodyContentHTML + getFooterHTML() + getAlertModalHTML() + getQuizModalHTML();
+    }
+
+    // [업데이트 명세]: 3등 피자 이미지 버그 완벽 수정 및 이름 줄바꿈 적용
+    function getRankPodiumHTML() {
+      const sorted = getSortedPizzas();
+      const top3 = sorted.slice(0, 3);
+      if (top3.length === 0) {
+        return `<div class="col-span-3 text-center text-slate-400 py-12 bg-slate-50 rounded-2xl font-medium">기록된 시장 거래 실적이 없습니다.</div>`;
+      }
+
+      let html = '';
+      if (top3[1]) {
+        html += `
+          <div class="order-2 md:order-1 bg-slate-50 border-4 border-slate-200 rounded-3xl p-5 text-center flex flex-col justify-between h-auto md:h-[350px] shadow-md transform hover:scale-105 transition-all relative">
+            <div class="absolute -top-6 left-1/2 -translate-x-1/2 bg-white rounded-full p-2 shadow-md border-2 border-slate-200"><span class="text-3xl block">🥈</span></div>
+            <div class="space-y-2 flex flex-col items-center mt-6">
+              <span class="text-[10px] font-black bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full tracking-wider uppercase">2nd Place</span>
+              <!-- 긴 이름 줄바꿈 -->
+              <h5 class="font-black text-slate-800 text-sm md:text-base break-all break-words leading-tight whitespace-normal min-h-[2.5rem] flex items-center justify-center text-center w-full">${top3[1].name}</h5>
+              <p class="text-[11px] text-slate-500 font-bold bg-white px-2 py-1 rounded border border-slate-200">기획 셰프: <span class="text-slate-800">${top3[1].creatorName}</span></p>
+              <div class="my-3 scale-90 origin-top flex justify-center">${getPizzaVisualizerHTML(top3[1].ingredients, 'small', false)}</div>
+            </div>
+            <div class="bg-white p-3 rounded-2xl border-2 border-slate-200 text-xs space-y-1.5 shadow-inner mt-2">
+              <p class="text-orange-600 font-black text-sm">💰 총 매출: ₩${((top3[1].buyers?.length || 0) * top3[1].price).toLocaleString()}</p>
+              <p class="text-emerald-600 font-bold">🛍️ 판매량: ${top3[1].buyers?.length || 0}판</p>
+              <p class="text-slate-500 font-medium text-[10px]">단가: ₩${top3[1].price.toLocaleString()}</p>
+            </div>
+          </div>
+        `;
+      }
+      if (top3[0]) {
+        html += `
+          <div class="order-1 md:order-2 bg-gradient-to-b from-orange-50 to-orange-100 border-4 border-orange-400 rounded-3xl p-6 text-center flex flex-col justify-between h-auto md:h-[390px] shadow-xl transform hover:scale-105 transition-all relative z-10">
+            <div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-white rounded-full p-3 shadow-lg border-4 border-orange-300"><span class="text-5xl animate-bounce block drop-shadow-md">🥇</span></div>
+            <div class="space-y-2 flex flex-col items-center mt-8">
+              <span class="text-xs font-black bg-orange-500 text-white px-3 py-1 rounded-full tracking-widest uppercase shadow-sm">1st Place / 챔피언</span>
+              <!-- 긴 이름 줄바꿈 -->
+              <h5 class="font-black text-orange-950 text-base md:text-lg break-all break-words leading-tight whitespace-normal min-h-[3rem] flex items-center justify-center text-center w-full">${top3[0].name}</h5>
+              <p class="text-xs text-orange-700 font-black bg-white px-3 py-1 rounded-lg border border-orange-200 shadow-sm">마스터 셰프: <span class="text-orange-950">${top3[0].creatorName}</span></p>
+              <div class="my-4 flex justify-center">${getPizzaVisualizerHTML(top3[0].ingredients, 'small', false)}</div>
+            </div>
+            <div class="bg-white p-4 rounded-2xl border-2 border-orange-300 text-xs space-y-2 shadow-inner mt-2">
+              <p class="text-rose-600 font-black text-base">💰 총 매출: ₩${((top3[0].buyers?.length || 0) * top3[0].price).toLocaleString()}</p>
+              <p class="text-emerald-600 font-black text-sm">🛍️ 판매량: ${top3[0].buyers?.length || 0}판</p>
+              <p class="text-slate-500 font-bold text-[11px]">단가: ₩${top3[0].price.toLocaleString()}</p>
+            </div>
+          </div>
+        `;
+      }
+      if (top3[2]) {
+        // [업데이트 명세]: 3위 피자도 정상적으로 미니 모형(getPizzaVisualizerHTML)이 출력되도록 복구 완료
+        html += `
+          <div class="order-3 md:order-3 bg-amber-50/30 border-4 border-amber-200 rounded-3xl p-5 text-center flex flex-col justify-between h-auto md:h-[330px] shadow-sm transform hover:scale-105 transition-all relative">
+            <div class="absolute -top-5 left-1/2 -translate-x-1/2 bg-white rounded-full p-2 shadow-sm border-2 border-amber-200"><span class="text-2xl block">🥉</span></div>
+            <div class="space-y-2 flex flex-col items-center mt-5">
+              <span class="text-[9px] font-black bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full tracking-wider uppercase">3rd Place</span>
+              <!-- 긴 이름 줄바꿈 -->
+              <h5 class="font-black text-slate-800 text-sm break-all break-words leading-tight whitespace-normal min-h-[2.5rem] flex items-center justify-center text-center w-full">${top3[2].name}</h5>
+              <p class="text-[10px] text-amber-700 font-bold bg-white px-2 py-0.5 rounded border border-amber-100">기획 셰프: <span class="text-amber-950">${top3[2].creatorName}</span></p>
+              <div class="my-2 scale-75 origin-top flex justify-center">${getPizzaVisualizerHTML(top3[2].ingredients, 'small', false)}</div>
+            </div>
+            <div class="bg-white p-2.5 rounded-2xl border-2 border-amber-100 text-xs space-y-1 shadow-inner mt-2">
+              <p class="text-orange-600 font-black text-xs">💰 총 매출: ₩${((top3[2].buyers?.length || 0) * top3[2].price).toLocaleString()}</p>
+              <p class="text-emerald-600 font-bold text-[11px]">🛍️ 판매량: ${top3[2].buyers?.length || 0}판</p>
+              <p class="text-slate-500 font-medium text-[9px]">단가: ₩${top3[2].price.toLocaleString()}</p>
+            </div>
+          </div>
+        `;
+      }
+
+      return html;
+    }
+
+    function getFooterHTML() {
+      return `
+        <footer class="mt-auto py-8 border-t border-orange-200 bg-orange-50/80 text-center text-xs text-orange-950/50 font-semibold font-mono">
+          <p>초등학교 사회과 4학년 실습 가상 피자 마켓 시뮬레이션 v2.0</p>
+          <p class="mt-1">한정된 자원으로 최고의 경제적 가치를 창조하세요!</p>
+        </footer>
+      `;
+    }
+
+    function getAlertModalHTML() {
+      if (!state.alertMessage) return '';
+      return `
+        <div class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div class="bg-white rounded-3xl border-4 border-amber-300 max-w-sm w-full p-8 shadow-2xl text-center space-y-5 animate-scale-up">
+            <span class="text-5xl inline-block drop-shadow-sm">🍕</span>
+            <p class="text-slate-800 font-black text-sm md:text-base leading-relaxed break-keep">${state.alertMessage}</p>
+            <button onclick="window.closeAlert()" class="w-full py-3.5 bg-orange-500 hover:bg-orange-600 text-white font-black rounded-xl text-sm transition-all shadow-md transform active:scale-95">확인했습니다</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function getQuizModalHTML() {
+      if (state.activeQuiz !== 'making') return '';
+      return `
+        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div class="bg-white rounded-3xl border-4 border-orange-400 max-w-md w-full p-6 md:p-8 shadow-2xl space-y-5 animate-scale-up">
+            <div class="flex items-center space-x-3 text-orange-600 border-b-2 border-orange-100 pb-3">
+              <span class="text-4xl">💡</span>
+              <h4 class="text-lg md:text-xl font-black tracking-tight">기획 제출 완료! 경제 성찰 퀴즈</h4>
+            </div>
+            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <p class="text-sm text-slate-700 leading-relaxed font-bold break-keep">
+                성실하게 피자를 기획해 보았습니다. <strong>"내가 좋아하는 최고급 재료들을 한도 걱정 없이 가득 담아 제출하지 못한 원초적 이유"</strong>는 무엇일까요?
+              </p>
+            </div>
+            <div class="space-y-2.5">
+              <button onclick="window.submitQuizAnswer('A')" class="w-full p-4 text-left text-sm font-bold rounded-2xl border-2 transition-all ${state.makingQuizAnswer === 'A' ? 'bg-orange-50 border-orange-500 text-orange-700 shadow-sm' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'}">
+                🔴 A. 주방 요리 기계가 한 번에 너무 많은 재료를 구울 수 없기 때문이다.
+              </button>
+              <button onclick="window.submitQuizAnswer('B')" class="w-full p-4 text-left text-sm font-bold rounded-2xl border-2 transition-all ${state.makingQuizAnswer === 'B' ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm' : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300'}">
+                🟢 B. 예산(돈)이라는 가용 경제 자원이 유한하여 '희소성'이 발생하기 때문이다.
+              </button>
+            </div>
+            ${state.makingQuizAnswer ? `
+              <div class="p-4 rounded-2xl ${state.makingQuizAnswer === 'B' ? 'bg-emerald-100/50 border-emerald-200 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-900'} border text-sm leading-relaxed font-bold animate-scale-up shadow-inner">
+                ${state.makingQuizAnswer === 'B' ? `
+                  <p>🎉 <strong>정답입니다! 참 잘했어요!</strong> 자원의 한계가 정해져 있어 모든 필요와 욕구를 다 채울 수 없는 현상을 경제학에서 '자원의 희소성'이라고 배웁니다. 유익한 실습 시간이 되었기를 바래요!</p>
+                ` : `
+                  <p>😢 <strong>아쉽지만 틀렸습니다!</strong> 기계 문제가 아닌, 피자 연구 제작비 예산이라는 희소한 자원의 제한이 원인입니다. 다시 한번 신중히 정답을 다시 골라보세요!</p>
+                `}
+              </div>
+            ` : ''}
+            <div class="pt-3 text-right">
+              <button onclick="window.closeQuizModal()" class="w-full md:w-auto px-6 py-3.5 bg-slate-800 hover:bg-slate-900 text-white font-black rounded-xl text-sm transition-all shadow-md transform active:scale-95">이해 완료! 상점 대기방 가기</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ==========================================
+    // 5. 비즈니스 헬퍼 및 통신 유틸리티
+    // ==========================================
+    function getSortedPizzas() {
+      return [...state.pizzas].sort((a, b) => {
+        const aRevenue = (a.buyers?.length || 0) * a.price;
+        const bRevenue = (b.buyers?.length || 0) * b.price;
+        if (bRevenue !== aRevenue) return bRevenue - aRevenue; // 1순위: 매출액
+        const aCount = a.buyers?.length || 0;
+        const bCount = b.buyers?.length || 0;
+        return bCount - aCount; // 2순위: 판매량
+      });
+    }
+
+    function addIngredient(ingId) {
+      const ing = INGREDIENTS.find(i => i.id === ingId);
+      if (!ing) return;
+
+      const currentCost = state.selectedIngredients.reduce((sum, ingStr) => {
+        const item = INGREDIENTS.find(i => i.id === parseIngredient(ingStr).id);
+        return sum + (item ? item.price : 0);
+      }, 0);
+
+      // [업데이트 명세]: 30,000원 한도 제한 적용
+      if (currentCost + ing.price > MAX_MAKING_BUDGET) {
+        showAlert(`💸 앗! 재료비 한도(${MAX_MAKING_BUDGET.toLocaleString()}원)를 초과할 수 없습니다! 모든 고급 재료를 원하는 만큼 쓸 수 없는 현상을 '자원의 희소성'이라고 합니다.`);
+        return;
+      }
+
+      // [업데이트 명세]: 드래그 이동을 위해 신규 토핑 생성 시 도우 안전 구역 내부 임의의 위치 지정
+      const isDraggable = (ing.category === 'meat' || ing.category === 'seafood' || ing.category === 'veg');
+      let ingStr = ingId;
+
+      if (isDraggable) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 10 + Math.random() * 25; // 도우 안쪽 안전 반경
+        const rx = Math.round(50 + radius * Math.cos(angle));
+        const ry = Math.round(50 + radius * Math.sin(angle));
+        ingStr = `${ingId}__${rx}__${ry}`;
+      }
+
+      setState({
+        selectedIngredients: [...state.selectedIngredients, ingStr]
+      });
+    }
+
+    function removeIngredient(ingId) {
+      const index = state.selectedIngredients.map(ingStr => parseIngredient(ingStr).id).lastIndexOf(ingId);
+      if (index === -1) return;
+      const updated = [...state.selectedIngredients];
+      updated.splice(index, 1);
+      setState({ selectedIngredients: updated });
+    }
+
+    // ==========================================
+    // 8. 전역 DOM 제어 인터페이스 (브라우저 바인딩) 및 드래그 이벤트 설계
+    // ==========================================
+    window.closeAlert = closeAlert;
+    window.updateStateField = (field, value) => {
+      if (field === 'pizzaName') state.pizzaName = value;
+      else if (field === 'studentName') state.studentName = value;
+      else if (field === 'roomCodeInput') state.roomCodeInput = value;
+    };
+
+    window.addIngredient = addIngredient;
+    window.removeIngredient = removeIngredient;
+    window.navTab = (tab) => setState({ activeTab: tab });
+
+    // [업데이트 명세]: 자유로운 토핑 드래그 앤 드롭 시스템 완벽 구현
+    function setupDragListeners() {
+      const container = document.getElementById('pizza-visualizer-container');
+      if (!container) return;
+
+      let draggingIndex = null;
+      let containerRect = null;
+
+      const onStart = (e, index) => {
+        if (e.type === 'touchstart') {
+          if (e.touches.length > 1) return; // 멀티터치 방지
+        } else {
+          if (e.button !== 0) return; // 좌클릭만 허용
+        }
+
+        draggingIndex = index;
+        const innerPizza = container.querySelector('.rounded-full.relative');
+        if(innerPizza) {
+            containerRect = innerPizza.getBoundingClientRect();
+        } else {
+            containerRect = container.getBoundingClientRect();
+        }
+        
+        if (e.type === 'mousedown') e.preventDefault(); // 브라우저 기본 드래그 차단
+      };
+
+      const onMove = (e) => {
+        if (draggingIndex === null || !containerRect) return;
+
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        // 마우스 절대좌표를 컨테이너 대비 % 비율로 계산
+        let xPct = ((clientX - containerRect.left) / containerRect.width) * 100;
+        let yPct = ((clientY - containerRect.top) / containerRect.height) * 100;
+
+        // 원형 피자 도우 영역 안으로 수학적 가두기 (반경 제한 R=38%, 중심 (50,50))
+        const dx = xPct - 50;
+        const dy = yPct - 50;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const maxRadius = 38; // 크러스트 영역 안쪽 최적 안전 경계
+
+        if (distance > maxRadius) {
+          xPct = 50 + (dx / distance) * maxRadius;
+          yPct = 50 + (dy / distance) * maxRadius;
+        }
+
+        // 극단적 외곽선 보정
+        xPct = Math.max(5, Math.min(95, xPct));
+        yPct = Math.max(5, Math.min(95, yPct));
+
+        // 부드러운 이동을 위해 실시간 DOM 스타일 갱신
+        const el = container.querySelector(`[data-index="${draggingIndex}"]`);
+        if (el) {
+          el.style.left = `${xPct}%`;
+          el.style.top = `${yPct}%`;
+        }
+      };
+
+      const onEnd = () => {
+        if (draggingIndex === null) return;
+
+        const el = container.querySelector(`[data-index="${draggingIndex}"]`);
+        if (el) {
+          const fx = parseFloat(el.style.left);
+          const fy = parseFloat(el.style.top);
+
+          // 드래그 종료 시 좌표 정보를 State에 커밋
+          const updated = [...state.selectedIngredients];
+          // 선택된 토핑 중 실제 화면에 그려진 인덱스와 매칭되는 것을 찾음
+          let renderCount = 0;
+          for (let i = 0; i < updated.length; i++) {
+            const ingObj = parseIngredient(updated[i]);
+            const ing = INGREDIENTS.find(item => item.id === ingObj.id);
+            if (ing && ing.category !== 'sauce' && ing.category !== 'edge' && ing.id !== 'mozzarella' && ing.category !== 'side') {
+                if (renderCount === draggingIndex) {
+                    updated[i] = `${ingObj.id}__${Math.round(fx)}__${Math.round(fy)}`;
+                    break;
+                }
+                renderCount++;
+            }
+          }
+          state.selectedIngredients = updated;
+          render(); // 상태 커밋 후 재렌더링
+        }
+
+        draggingIndex = null;
+        containerRect = null;
+      };
+
+      const draggableItems = container.querySelectorAll('.draggable-topping');
+      draggableItems.forEach(item => {
+        const idx = parseInt(item.getAttribute('data-index'));
+        item.addEventListener('mousedown', (e) => onStart(e, idx));
+        item.addEventListener('touchstart', (e) => onStart(e, idx), { passive: false });
+      });
+
+      // 마우스 이탈 시 유실 방지를 위해 window에 바인딩
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('touchmove', onMove, { passive: false });
+      window.addEventListener('mouseup', onEnd);
+      window.addEventListener('touchend', onEnd);
+
+      // 중복 리스너 해제 함수
+      window.activeDragCleanup = () => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('touchmove', onMove);
+        window.removeEventListener('mouseup', onEnd);
+        window.removeEventListener('touchend', onEnd);
+      };
+    }
+
+    // 통신 핸들러
+    window.handleJoinRoom = async () => {
+      const roomVal = document.getElementById('roomCodeField')?.value || '';
+      const nameVal = document.getElementById('studentNameField')?.value || '';
+      
+      if (!roomVal || roomVal.length !== 6) return showAlert("선생님이 보여주신 6자리 인증번호를 정확히 입력해 주세요.");
+      if (!nameVal.trim()) return showAlert("이름을 적어주셔야 피자 마켓에 입장할 수 있습니다.");
+
+      try {
+        const roomsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'rooms');
+        const querySnapshot = await getDocs(roomsColRef);
+        const roomsList = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const targetRoom = roomsList.find(r => r.code === roomVal.trim());
+
+        if (targetRoom) {
+          const participantRef = doc(db, 'artifacts', appId, 'public', 'data', 'participants', state.studentSessionId);
+          await setDoc(participantRef, {
+            roomId: targetRoom.id,
+            studentId: state.studentSessionId,
+            name: nameVal.trim(),
+            role: 'student',
+            joinedAt: Date.now()
+          });
+
+          setState({ studentName: nameVal.trim(), currentRoomId: targetRoom.id, role: 'student' });
+          setupRealtimeSync(targetRoom.id);
+        } else {
+          showAlert("인증번호가 바르지 않거나 활성화된 방을 찾을 수 없습니다.");
+        }
+      } catch (err) {
+        console.error(err);
+        showAlert("교실 참가 중 에러가 발생했습니다. 다시 한번 시도해주세요.");
+      }
+    };
+
+    window.handleCreateRoom = async () => {
+      if (!state.user) return showAlert("서버 로그인 초기화 중입니다. 잠시 후 다시 시도해 주세요!");
+      
+      const randomCode = Math.floor(100000 + Math.random() * 900000).toString();
+      const newRoomId = `room_${Date.now()}`;
+
+      try {
+        const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', newRoomId);
+        await setDoc(roomRef, { code: randomCode, status: 'making', createdAt: Date.now() });
+
+        const teacherRef = doc(db, 'artifacts', appId, 'public', 'data', 'participants', `teacher_${state.user.uid}`);
+        await setDoc(teacherRef, { roomId: newRoomId, uid: state.user.uid, name: '선생님', role: 'teacher', joinedAt: Date.now() });
+
+        setState({ currentRoomId: newRoomId, role: 'teacher' });
+        setupRealtimeSync(newRoomId);
+        showAlert("성공적으로 피자 가게 클래스룸이 개설되었습니다!");
+      } catch (err) {
+        console.error(err);
+        showAlert("교실을 만드는데 오류가 발생했습니다.");
+      }
+    };
+
+    window.handleUpdateRoomStatus = async (status) => {
+      if (!state.currentRoomId) return;
+      try {
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', state.currentRoomId), { status });
+      } catch (err) {
+        console.error(err);
+        showAlert("마켓 단계를 업데이트할 수 없습니다.");
+      }
+    };
+
+    window.handleResetRoom = async () => {
+      if (!state.currentRoomId) return;
+      try {
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', state.currentRoomId), { status: 'making' });
+        state.pizzas.forEach(async (p) => {
+          await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'pizzas', p.id));
+        });
+        showAlert("모든 거래 내역과 피자 등록이 초기화되고 1단계(만들기)로 복귀하였습니다.");
+        setState({ hasSubmitted: false, selectedIngredients: [], pizzaName: '' });
+      } catch (err) {
+        console.error(err);
+        showAlert("초기화 과정에 문제가 발생했습니다.");
+      }
+    };
+
+    window.handleSubmitPizza = async () => {
+      if (!state.pizzaName.trim()) return showAlert("개발한 나만의 피자 이름을 지어주세요!");
+      if (state.selectedIngredients.length === 0) return showAlert("최소 1가지 이상의 토핑이나 도우를 선택해야 합니다!");
+
+      const pizzaCost = state.selectedIngredients.reduce((sum, ingStr) => {
+        const item = INGREDIENTS.find(i => i.id === parseIngredient(ingStr).id);
+        return sum + (item ? item.price : 0);
+      }, 0);
+
+      try {
+        const pizzaId = `pizza_${state.studentSessionId}`;
+        const pizzaRef = doc(db, 'artifacts', appId, 'public', 'data', 'pizzas', pizzaId);
+        
+        await setDoc(pizzaRef, {
+          roomId: state.currentRoomId,
+          creatorId: state.studentSessionId,
+          creatorName: state.studentName,
+          name: state.pizzaName.trim(),
+          ingredients: state.selectedIngredients,
+          cost: pizzaCost,
+          price: pizzaCost, // 단가 = 재료비
+          buyers: []
+        });
+
+        setState({ hasSubmitted: true, activeQuiz: 'making' });
+      } catch (err) {
+        console.error(err);
+        showAlert("피자를 오븐에 넣는 과정에 에러가 발생했습니다.");
+      }
+    };
+
+    window.handleBuyPizza = async (pizzaId) => {
+      const pizza = state.pizzas.find(x => x.id === pizzaId);
+      if (!pizza) return;
+      if (pizza.creatorId === state.studentSessionId) return showAlert("🚫 내가 직접 만든 피자는 내 상점에서 살 수 없습니다!");
+      if (state.buyerWallet < pizza.price) return showAlert(`💸 잔액이 모자랍니다! 합리적인 구매 의사결정을 실천해 보세요.`);
+
+      try {
+        const pizzaRef = doc(db, 'artifacts', appId, 'public', 'data', 'pizzas', pizza.id);
+        const updatedBuyers = [...(pizza.buyers || []), state.studentSessionId];
+        await updateDoc(pizzaRef, { buyers: updatedBuyers });
+        showAlert(`🎉 '${pizza.name}' 피자를 1판 구매하였습니다!`);
+      } catch (err) {
+        console.error(err);
+        showAlert("구매 과정에 문제가 발생했습니다.");
+      }
+    };
+
+    window.handleRefundPizza = async (pizzaId) => {
+      const pizza = state.pizzas.find(x => x.id === pizzaId);
+      if(!pizza) return;
+      try {
+        const pizzaRef = doc(db, 'artifacts', appId, 'public', 'data', 'pizzas', pizza.id);
+        const buyersList = [...(pizza.buyers || [])];
+        const lastIndex = buyersList.lastIndexOf(state.studentSessionId);
+        if (lastIndex !== -1) {
+          buyersList.splice(lastIndex, 1);
+          await updateDoc(pizzaRef, { buyers: buyersList });
+          showAlert(`💸 '${pizza.name}' 피자 구매를 1판 취소하고 환불받았습니다.`);
+        }
+      } catch (err) {
+        console.error(err);
+        showAlert("환불 취소 처리 도중 오류가 발생했습니다.");
+      }
+    };
+
+    window.submitQuizAnswer = (ans) => setState({ makingQuizAnswer: ans });
+    window.closeQuizModal = () => {
+      if (!state.makingQuizAnswer) return showAlert("복습 정답을 터치해서 골라보세요!");
+      if (state.makingQuizAnswer === 'A') return showAlert("오답입니다. 다시 한번 읽고 B를 선택해 보세요!");
+      setState({ activeQuiz: null });
+    };
+
+    // ==========================================
+    // 7. 실시간 Firestore 연동 동기화 (onSnapshot)
+    // ==========================================
+    let unsubRoom = null; let unsubParticipants = null; let unsubPizzas = null;
+
+    function setupRealtimeSync(roomId) {
+      if (unsubRoom) unsubRoom();
+      if (unsubParticipants) unsubParticipants();
+      if (unsubPizzas) unsubPizzas();
+      if (!roomId) return;
+
+      const roomDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+      unsubRoom = onSnapshot(roomDocRef, (snapshot) => {
+        if (snapshot.exists()) setState({ roomData: { id: snapshot.id, ...snapshot.data() } });
+        else { showAlert("교실이 종료되었습니다."); exitRoom(); }
+      }, (error) => console.error("방 구독 에러:", error));
+
+      const participantsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'participants');
+      unsubParticipants = onSnapshot(participantsColRef, (snapshot) => {
+        const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setState({ participants: list.filter(p => p.roomId === roomId) });
+      }, (error) => console.error("참여자 구독 에러:", error));
+
+      const pizzasColRef = collection(db, 'artifacts', appId, 'public', 'data', 'pizzas');
+      unsubPizzas = onSnapshot(pizzasColRef, (snapshot) => {
+        const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const filtered = list.filter(p => p.roomId === roomId);
+
+        const myPizza = filtered.find(p => p.creatorId === state.studentSessionId);
+        let hasSubmitted = state.hasSubmitted;
+        let selectedIngredients = state.selectedIngredients;
+        let pizzaName = state.pizzaName;
+        let makingQuizAnswer = state.makingQuizAnswer;
+
+        if (myPizza) hasSubmitted = true;
+        else if (state.hasSubmitted) {
+          // 교사가 방을 초기화했을 때
+          hasSubmitted = false; selectedIngredients = []; pizzaName = ''; makingQuizAnswer = null;
+        }
+
+        let totalSpent = 0;
+        const myPurchases = [];
+        filtered.forEach(pizza => {
+          const myCount = (pizza.buyers || []).filter(id => id === state.studentSessionId).length;
+          if (myCount > 0) {
+            totalSpent += pizza.price * myCount;
+            for (let i = 0; i < myCount; i++) myPurchases.push(pizza.id);
+          }
+        });
+
+        setState({
+          pizzas: filtered, hasSubmitted, selectedIngredients, pizzaName, makingQuizAnswer,
+          purchasedPizzas: myPurchases, buyerWallet: MAX_BUYING_BUDGET - totalSpent
+        });
+      }, (error) => console.error("피자 마켓 구독 에러:", error));
+    }
+
+    // ==========================================
+    // 9. 초기 인증 기동 및 생명주기
+    // ==========================================
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) {
+        console.error("인증 실패:", err);
+      }
+    };
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        state.user = user;
+        if (state.currentRoomId) setupRealtimeSync(state.currentRoomId);
+        else {
+          try {
+            const participantRef = doc(db, 'artifacts', appId, 'public', 'data', 'participants', state.studentSessionId);
+            const pSnap = await getDoc(participantRef);
+            if (pSnap.exists()) {
+              const pData = pSnap.data();
+              setState({ currentRoomId: pData.roomId, studentName: pData.name, role: pData.role || 'student' });
+              setupRealtimeSync(pData.roomId);
+            }
+          } catch(e) {}
+        }
+      }
+      render();
+    });
+
+    window.onload = function() {
+      const reportDiv = document.createElement('div');
+      reportDiv.id = 'classroom-report';
+      reportDiv.className = 'hidden p-8 bg-white text-slate-800 font-sans max-w-4xl mx-auto space-y-8';
+      document.body.appendChild(reportDiv);
+      
+      setInterval(updatePDFContainerData, 2000);
+      initAuth();
+      render();
+    };
+
+    // PDF 결과 리포트 출력 렌더러
+    window.generatePDFReport = () => {
+      const element = document.getElementById('classroom-report');
+      if (!element) return showAlert("출력 데이터 로드에 실패했습니다.");
+      if (typeof html2pdf === 'undefined') return showAlert("PDF 다운로드 모듈이 준비 중입니다. 잠시 후 다시 시도해 주세요.");
+
+      element.classList.remove('hidden');
+      const opt = {
+        margin: [0.5, 0.5, 0.5, 0.5],
+        filename: `피자가게_경제교실_결과보고서_${state.roomData?.code || 'class'}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+      };
+
+      html2pdf().set(opt).from(element).save().then(() => {
+        element.classList.add('hidden');
+        showAlert("📄 피자가게 종합 실습 결과 리포트 PDF가 안전하게 다운로드되었습니다!");
+      });
+    };
+
+    function updatePDFContainerData() {
+      const element = document.getElementById('classroom-report');
+      if (!element || !state.currentRoomId) return;
+
+      const sorted = getSortedPizzas();
+      const top3 = sorted.slice(0, 3);
+      const totalTx = state.pizzas.reduce((sum, p) => sum + (p.buyers?.length || 0), 0);
+      const totalRev = state.pizzas.reduce((sum, p) => sum + ((p.buyers?.length || 0) * p.price), 0);
+
+      element.innerHTML = `
+        <div class="text-center space-y-2 border-b-4 border-slate-900 pb-6">
+          <p class="text-xs tracking-wider uppercase font-extrabold text-slate-500 font-mono">초등학교 4학년 사회과 [자원의 희소성과 현명한 선택] 활동 보고서</p>
+          <h1 class="text-3xl font-black text-rose-600">🍕 가상 피자가게 경제 교실 시뮬레이션 보고지</h1>
+          <p class="text-xs text-slate-400">교실 방 고유코드: ${state.roomData?.code || '......'} | 학급 명세 추출: ${new Date().toLocaleString()}</p>
+        </div>
+        <div class="grid grid-cols-3 gap-4 text-center">
+          <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+            <p class="text-[10px] text-slate-500 font-bold uppercase">전체 참여 학생</p>
+            <p class="text-xl font-black mt-1 text-slate-800">${state.participants.filter(p => p.role === 'student').length}명</p>
+          </div>
+          <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+            <p class="text-[10px] text-slate-500 font-bold uppercase">시장 누적 거래량</p>
+            <p class="text-xl font-black mt-1 text-emerald-600">${totalTx}판 판매</p>
+          </div>
+          <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200">
+            <p class="text-[10px] text-slate-500 font-bold uppercase">시장 총 거래 유통규모</p>
+            <p class="text-xl font-black mt-1 text-orange-600">₩${totalRev.toLocaleString()}</p>
+          </div>
+        </div>
+        <div class="space-y-3">
+          <h3 class="text-base font-black border-l-4 border-orange-500 pl-2">🏆 피자 판매왕 영광의 랭킹 (Top 3)</h3>
+          <div class="grid grid-cols-3 gap-4">
+            ${top3.map((pizza, idx) => `
+              <div class="p-4 rounded-xl border border-slate-300 bg-orange-50/20 text-center space-y-1">
+                <span class="text-sm font-black text-slate-800">${idx + 1}위 : ${pizza.name}</span>
+                <p class="text-xs text-orange-600 font-bold">기획 학생: ${pizza.creatorName}</p>
+                <div class="text-[10px] text-slate-500 pt-1 border-t border-dashed border-slate-200 space-y-0.5">
+                  <p>단가 가격: ₩${pizza.price.toLocaleString()}</p>
+                  <p>총 판매량: <strong>${pizza.buyers?.length || 0}판</strong></p>
+                  <p>총 매출액: <strong>₩${((pizza.buyers?.length || 0) * pizza.price).toLocaleString()}</strong></p>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+        <div class="space-y-3">
+          <h3 class="text-base font-black border-l-4 border-orange-500 pl-2">📊 전체 기획 피자 상세 성과 명세</h3>
+          <table class="w-full text-left text-xs border-collapse border border-slate-200">
+            <thead>
+              <tr class="bg-slate-100 text-slate-900 border-b border-slate-200 font-bold">
+                <th class="p-2 border-r border-slate-200 font-black">기획자 학생</th>
+                <th class="p-2 border-r border-slate-200 font-black">피자 작품명</th>
+                <th class="p-2 border-r border-slate-200 font-black">최종 판매가</th>
+                <th class="p-2 border-r border-slate-200 font-black text-center">누적 판매량</th>
+                <th class="p-2 border-r border-slate-200 font-black text-center">총 매출액</th>
+                <th class="p-2 font-black">구매 학생 명단</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sorted.map(pizza => {
+                const buyerNames = (pizza.buyers || []).map(sid => state.participants.find(p => p.studentId === sid)?.name || '학생').join(', ');
+                return `
+                  <tr class="border-b border-slate-200">
+                    <td class="p-2 border-r border-slate-200 font-bold">${pizza.creatorName}</td>
+                    <td class="p-2 border-r border-slate-200">${pizza.name}</td>
+                    <td class="p-2 border-r border-slate-200 font-mono">₩${pizza.price.toLocaleString()}</td>
+                    <td class="p-2 border-r border-slate-200 text-center font-bold text-slate-800">${pizza.buyers?.length || 0}판</td>
+                    <td class="p-2 border-r border-slate-200 text-center font-bold text-orange-600">₩${((pizza.buyers?.length || 0) * pizza.price).toLocaleString()}</td>
+                    <td class="p-2 text-slate-500 italic text-[10px] break-all">${buyerNames || '기록 없음'}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div class="pt-12 text-center text-slate-400 text-[10px] border-t border-slate-200">
+          <p>이 결과 보고서는 피자나라 경제 실습 프로그램을 완수한 공식 실습 데이터 보고서입니다.</p>
+          <p>© 피자나라 경제교실 시뮬레이터 프로그램 제공</p>
+        </div>
+      `;
+    }
+
+    // React의 useEffect처럼 렌더링 이후 DOM 제어를 수행하기 위한 Proxy 패치
+    const baseSetState = setState;
+    setState = function(newState) {
+      if (window.activeDragCleanup) window.activeDragCleanup(); // 이벤트 중첩 방지
+      baseSetState(newState);
+      if (state.role === 'student' && state.roomData?.status === 'making' && !state.hasSubmitted) {
+        setupDragListeners(); // 드래그 인터랙션 마운트
+      }
+    };
+  </script>
+</body>
+</html>
