@@ -22,6 +22,23 @@
       from { transform: scale(0.95); opacity: 0; }
       to { transform: scale(1); opacity: 1; }
     }
+    /* 태블릿: 버튼 연타 시 화면 확대(더블탭 줌) 방지, 터치 하이라이트 제거 */
+    button {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    /* 토핑을 끄는 동안 화면이 같이 스크롤되지 않도록 */
+    .draggable-topping {
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .animate-toast {
+      animation: toastIn 0.2s ease-out forwards;
+    }
+    @keyframes toastIn {
+      from { transform: translate(-50%, 12px); opacity: 0; }
+      to { transform: translate(-50%, 0); opacity: 1; }
+    }
   </style>
 </head>
 <body class="min-h-screen bg-orange-50/50 text-slate-800 flex flex-col selection:bg-orange-200">
@@ -90,6 +107,67 @@
       { id: 'hot_sauce', name: '핫소스 보틀', price: 300, emoji: '🌶️', category: 'side' },
       { id: 'cola', name: '얼음 톡 콜라 캔', price: 1500, emoji: '🥤', category: 'side' },
       { id: 'pickle', name: '아삭 수제 오이피클', price: 500, emoji: '🥒', category: 'side' }
+    ];
+
+    // 재료 고르기 화면의 분류 탭
+    const INGREDIENT_TABS = [
+      { id: 'sauce', label: '소스', emoji: '🍅', hint: '소스를 여러 개 고르면 피자 위에 나눠서 발라져요.' },
+      { id: 'edge', label: '엣지', emoji: '🥯', hint: '엣지는 피자 테두리에 들어가요.' },
+      { id: 'cheese', label: '치즈', emoji: '🧀', hint: '+ 를 한 번 누를 때마다 토핑 6조각이 올라가요.' },
+      { id: 'meat', label: '고기', emoji: '🥓', hint: '+ 를 한 번 누를 때마다 토핑 6조각이 올라가요.' },
+      { id: 'seafood', label: '해산물', emoji: '🦐', hint: '+ 를 한 번 누를 때마다 토핑 6조각이 올라가요.' },
+      { id: 'veg', label: '채소', emoji: '🍄', hint: '+ 를 한 번 누를 때마다 토핑 6조각이 올라가요.' },
+      { id: 'side', label: '사이드', emoji: '🥤', hint: '사이드는 피자 위가 아니라 옆 쟁반에 담겨요.' }
+    ];
+
+    // 소스·엣지 색상 (여러 개를 고르면 피자를 나눠 칠함)
+    const SAUCE_COLORS = { tomato_sauce: '#E05A47', cream_sauce: '#F5F5DC', bbq_sauce: '#A0522D' };
+    const CRUST_COLORS = { cheese_crust: '#FDE68A', sweet_potato_crust: '#F59E0B' };
+
+    // 피자 제출 후 풀어보는 경제 퀴즈
+    const QUIZ_QUESTIONS = [
+      {
+        q: '내가 좋아하는 비싼 재료를 마음껏 담지 못한 까닭은 무엇일까요?',
+        options: ['요리 기계가 고장 났기 때문에', '쓸 수 있는 돈(예산)이 정해져 있기 때문에', '친구가 못 하게 했기 때문에'],
+        answer: 1,
+        explain: '갖고 싶은 것은 많은데 쓸 수 있는 돈은 한정되어 있어요. 이것을 자원의 희소성이라고 해요.'
+      },
+      {
+        q: "'희소성'은 무엇을 뜻할까요?",
+        options: ['사람들이 원하는 것에 비해 자원이 부족한 상태', '물건이 아주 많아서 남는 상태', '물건의 가격이 언제나 같은 상태'],
+        answer: 0,
+        explain: '사람들이 원하는 것은 끝이 없지만, 그것을 채워 줄 돈·시간·물건은 부족해요. 이것이 희소성이에요.'
+      },
+      {
+        q: '한우 토핑(5,000원)을 넣었더니 다른 재료를 줄여야 했어요. 여기서 알 수 있는 것은?',
+        options: ['비싼 재료일수록 무조건 좋다', '하나를 고르면 다른 것은 포기해야 한다', '재료는 많이 넣을수록 좋다'],
+        answer: 1,
+        explain: '희소성 때문에 무엇인가를 고르면 다른 것은 포기해야 해요. 그래서 신중하게 선택해야 해요.'
+      },
+      {
+        q: '내가 피자를 만들어 마켓에 내놓는 것은 어떤 경제활동일까요?',
+        options: ['소비', '생산', '저축'],
+        answer: 1,
+        explain: '사람들에게 필요한 물건을 만들거나 서비스를 제공하는 것을 생산이라고 해요.'
+      },
+      {
+        q: '친구가 만든 피자를 용돈으로 사는 것은 어떤 경제활동일까요?',
+        options: ['생산', '기부', '소비'],
+        answer: 2,
+        explain: '필요한 물건을 사거나 서비스를 이용하는 것을 소비라고 해요.'
+      },
+      {
+        q: '피자 마켓에서 현명하게 선택하는 방법으로 가장 알맞은 것은?',
+        options: ['가장 비싼 피자를 고른다', '친구가 고른 피자를 따라 산다', '가격, 맛, 양 같은 기준을 정해 비교하고 고른다'],
+        answer: 2,
+        explain: '기준을 세우고 비교하면 한정된 돈으로 가장 큰 만족을 얻을 수 있어요. 이것이 합리적 선택이에요.'
+      },
+      {
+        q: '사막에서는 물 한 병이 아주 귀해요. 그 까닭은 무엇일까요?',
+        options: ['물병이 예뻐서', '물을 원하는 사람에 비해 물이 부족해서', '물맛이 특별해서'],
+        answer: 1,
+        explain: '같은 물건이라도 장소나 때에 따라 희소성이 달라질 수 있어요.'
+      }
     ];
 
     // 토핑 분산용 좌표 프리셋 (총 12개 좌표 구비)
@@ -164,8 +242,13 @@
       hasSubmitted: false,
       buyerWallet: MAX_BUYING_BUDGET,
       purchasedPizzas: [],
-      makingQuizAnswer: null,
+      ingredientTab: 'sauce',
+      confirmReset: false,
+      quizIndex: 0,
+      quizChoice: null,
+      quizCorrectCount: 0,
       alertMessage: null,
+      toastMessage: null,
       activeQuiz: null,
       studentSessionId: (() => {
         const saved = sessionStorage.getItem('pizza_student_session_id');
@@ -185,13 +268,42 @@
       });
     }
 
-    function setState(newState) {
+    // 친구들의 제출 등 서버 변경으로 화면을 다시 그릴 때, 글자를 입력 중이면 입력이 끊기지 않도록 잠시 미룸
+    let pendingRemoteRender = false;
+
+    function isTypingInField() {
+      const el = document.activeElement;
+      const root = document.getElementById('app');
+      return !!(el && root && root.contains(el) && el.tagName === 'INPUT' && el.type === 'text');
+    }
+
+    function setState(newState, fromRemote = false) {
       state = { ...state, ...newState };
+      // 토핑을 끌고 있는 중에도 다시 그리면 손에 잡은 토핑이 사라지므로 미룸
+      if (fromRemote && (isTypingInField() || dragElement)) {
+        pendingRemoteRender = true;
+        return;
+      }
       render();
     }
 
+    document.addEventListener('focusout', () => {
+      if (!pendingRemoteRender) return;
+      setTimeout(() => {
+        if (pendingRemoteRender && !isTypingInField()) render();
+      }, 0);
+    });
+
     function showAlert(msg) {
       setState({ alertMessage: msg });
+    }
+
+    // 확인 버튼 없이 잠깐 떴다 사라지는 알림 (구매·취소처럼 자주 누르는 동작용)
+    let toastTimer = null;
+    function showToast(msg) {
+      if (toastTimer) clearTimeout(toastTimer);
+      setState({ toastMessage: msg });
+      toastTimer = setTimeout(() => setState({ toastMessage: null }), 1800);
     }
 
     function closeAlert() {
@@ -214,7 +326,9 @@
         hasSubmitted: false,
         selectedIngredients: [],
         pizzaName: '',
-        makingQuizAnswer: null,
+        activeQuiz: null,
+        confirmReset: false,
+        ingredientTab: 'sauce',
         activeTab: 'main',
         roomCodeInput: ''
       });
@@ -268,6 +382,15 @@
           displaySeconds = remainingPaused;
         }
 
+        lastDisplaySeconds = displaySeconds;
+        paintTimer(displaySeconds);
+      }, 500);
+    }
+
+    let lastDisplaySeconds = 0;
+
+    function paintTimer(displaySeconds) {
+        if (!state.roomData) return;
         const timerDisplays = document.querySelectorAll('.timer-countdown-display');
         timerDisplays.forEach(el => {
           const m = Math.floor(displaySeconds / 60);
@@ -286,7 +409,6 @@
             bar.className = "timer-progress-bar h-2 bg-amber-500 rounded-full transition-all duration-500";
           }
         });
-      }, 500);
     }
 
     // ==========================================
@@ -376,6 +498,8 @@
       document.removeEventListener('mouseup', onPointerUp);
       document.removeEventListener('touchmove', onPointerMove);
       document.removeEventListener('touchend', onPointerUp);
+
+      if (pendingRemoteRender) render();
     }
 
     document.addEventListener('mousedown', onPointerDown);
@@ -385,29 +509,42 @@
     // 6. UI 컴포넌트 렌더링 엔진
     // ==========================================
 
+    // 여러 종류를 고르면 담은 양에 비례해 부채꼴로 나눠 칠하는 배경 (한 종류면 단색)
+    function getSplitBackground(ids, colors) {
+      const picked = ids.filter(id => colors[id]);
+      const kinds = Object.keys(colors).filter(id => picked.includes(id));
+      if (kinds.length === 0) return null;
+      if (kinds.length === 1) return colors[kinds[0]];
+      let acc = 0;
+      const stops = kinds.map(id => {
+        const from = (acc / picked.length) * 360;
+        acc += picked.filter(x => x === id).length;
+        const to = (acc / picked.length) * 360;
+        return `${colors[id]} ${from}deg ${to}deg`;
+      });
+      return `conic-gradient(${stops.join(', ')})`;
+    }
+
     function getPizzaVisualizerHTML(ingredients = [], size = 'large', isCreator = false) {
       const isLarge = size === 'large';
-      const containerClass = isLarge 
-        ? "w-56 h-56 md:w-64 md:h-64 border-[10px]" 
-        : "w-24 h-24 border-[5px]";
-      
+      const isMedium = size === 'medium';
+      const containerClass = isLarge
+        ? "w-60 h-60 md:w-64 md:h-64 border-[10px]"
+        : isMedium ? "w-32 h-32 border-[6px]" : "w-24 h-24 border-[5px]";
+
       const ids = ingredients.map(item => typeof item === 'string' ? item : item.id);
 
       let crustHTML = '';
-      if (ids.includes('cheese_crust')) {
-        crustHTML += `<div class="absolute inset-0 rounded-full z-10 pointer-events-none ${isLarge ? 'border-[18px]' : 'border-[8px]'} border-[#FCD973]/70"></div>`;
-      }
-      if (ids.includes('sweet_potato_crust')) {
-        crustHTML += `<div class="absolute inset-0 rounded-full z-10 pointer-events-none ${isLarge ? 'border-[18px]' : 'border-[8px]'} border-[#FFD700]/60"></div>`;
+      const crustBg = getSplitBackground(ids, CRUST_COLORS);
+      if (crustBg) {
+        const ringMask = 'radial-gradient(circle closest-side, transparent 84%, #000 85%)';
+        crustHTML = `<div class="absolute inset-0 rounded-full z-10 pointer-events-none opacity-80" style="background: ${crustBg}; -webkit-mask: ${ringMask}; mask: ${ringMask};"></div>`;
       }
 
       let sauceHTML = '';
-      if (ids.includes('tomato_sauce')) {
-        sauceHTML += `<div class="w-[88%] h-[88%] bg-[#E05A47]/95 rounded-full absolute shadow-inner"></div>`;
-      } else if (ids.includes('cream_sauce')) {
-        sauceHTML += `<div class="w-[88%] h-[88%] bg-[#F5F5DC] rounded-full absolute shadow-inner"></div>`;
-      } else if (ids.includes('bbq_sauce')) {
-        sauceHTML += `<div class="w-[88%] h-[88%] bg-[#8B4513]/80 rounded-full absolute shadow-inner"></div>`;
+      const sauceBg = getSplitBackground(ids, SAUCE_COLORS);
+      if (sauceBg) {
+        sauceHTML = `<div class="w-[88%] h-[88%] rounded-full absolute shadow-inner" style="background: ${sauceBg};"></div>`;
       }
 
       let cheeseHTML = '';
@@ -438,8 +575,8 @@
           y = 50 + (pos.r * 100 * Math.sin(angleRad)) * 0.85;
         }
 
-        const emojiSize = isLarge ? '25px' : '15px';
-        const cursorClass = (isCreator && isLarge) ? 'draggable-topping cursor-grab active:cursor-grabbing hover:scale-110 active:scale-125 z-30' : 'z-20';
+        const emojiSize = isLarge ? '28px' : isMedium ? '18px' : '15px';
+        const cursorClass = (isCreator && isLarge) ? 'draggable-topping cursor-grab active:cursor-grabbing active:scale-125 z-30' : 'z-20';
 
         toppingsHTML += `
           <div class="absolute select-none font-sans transition-transform ${cursorClass}" 
@@ -459,8 +596,8 @@
       if (actualDoughToppings.length === 0) {
         placeholderHTML = `
           <div class="absolute inset-0 bg-black/5 flex items-center justify-center text-center p-2 z-10">
-            <p class="text-orange-950/60 font-black text-[10px] md:text-xs">
-              재료 보관소에서<br>토핑을 담아주세요!
+            <p class="text-orange-950/60 font-black ${isLarge ? 'text-sm' : 'text-[10px]'}">
+              재료를 골라<br>담아 주세요!
             </p>
           </div>
         `;
@@ -485,6 +622,7 @@
       });
 
       if (sideIds.length === 0) {
+        if (size !== 'large') return '';
         return `
           <div class="w-full bg-slate-50 border border-dashed border-slate-200 rounded-2xl py-3 text-center text-slate-400 text-xs font-semibold">
             🥤 장바구니에 담긴 음료 & 사이드가 없습니다.
@@ -502,11 +640,24 @@
 
       const isLarge = size === 'large';
 
+      // 작은 카드 안에서는 칸이 좁으므로 한 줄짜리 작은 칩으로 표시
+      if (!isLarge) {
+        return `
+          <div class="flex flex-wrap gap-1">
+            ${Object.entries(counts).map(([id, count]) => {
+              const ing = INGREDIENTS.find(i => i.id === id);
+              if (!ing) return '';
+              return `<span class="inline-flex items-center gap-1 bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5 text-xs font-bold text-slate-700">${ing.emoji} ${ing.name} ×${count}</span>`;
+            }).join('')}
+          </div>
+        `;
+      }
+
       let listHTML = Object.entries(counts).map(([id, count]) => {
         const ing = INGREDIENTS.find(i => i.id === id);
         if (!ing) return '';
         return `
-          <div class="flex items-center space-x-2 bg-white rounded-xl p-2 border border-orange-100 shadow-sm animate-scale-up">
+          <div class="flex items-center space-x-2 bg-white rounded-xl p-2 border border-orange-100 shadow-sm">
             <span class="${isLarge ? 'text-2xl' : 'text-sm'}">${ing.emoji}</span>
             <div class="text-left leading-tight">
               <span class="text-xs font-black block text-slate-800">${ing.name}</span>
@@ -519,7 +670,7 @@
       return `
         <div class="w-full bg-orange-100/40 rounded-2xl p-3 border-2 border-orange-200">
           <p class="text-[10px] text-orange-950 font-black mb-2 flex items-center gap-1">
-            🍹 사이드 & 소스 트레이 (피자 미탑재)
+            🍹 사이드 쟁반 (피자 옆에 따로 담겨요)
           </p>
           <div class="grid grid-cols-2 gap-2">
             ${listHTML}
@@ -537,10 +688,57 @@
       }, 0);
     }
 
+    // 화면이 바뀔 때만 등장 애니메이션을 주고, 같은 화면을 다시 그릴 때는 깜빡이지 않게 함
+    let lastScreenKey = null;
+    let lastModalKey = null;
+    let screenAnim = '';
+    let modalAnim = '';
+
     function render() {
+      pendingRemoteRender = false;
       const root = document.getElementById('app');
       if (!root) return;
 
+      const screenKey = `${state.activeTab}|${state.currentRoomId ? state.role : 'lobby'}|${state.roomData?.status || ''}`;
+      const screenChanged = screenKey !== lastScreenKey;
+      lastScreenKey = screenKey;
+      screenAnim = screenChanged ? 'animate-scale-up' : '';
+
+      const modalKey = `${state.alertMessage || ''}|${state.activeQuiz || ''}|${state.quizIndex}|${state.confirmReset}`;
+      modalAnim = modalKey !== lastModalKey ? 'animate-scale-up' : '';
+      lastModalKey = modalKey;
+
+      // 다시 그려도 스크롤 위치·입력 중인 칸이 그대로 유지되도록 저장
+      const scrollY = window.scrollY;
+      const innerScrolls = {};
+      root.querySelectorAll('[data-keep-scroll]').forEach(el => {
+        innerScrolls[el.dataset.keepScroll] = el.scrollTop;
+      });
+      const active = document.activeElement;
+      const focusId = active && root.contains(active) && active.id ? active.id : null;
+      let selStart = null, selEnd = null;
+      try {
+        if (focusId) { selStart = active.selectionStart; selEnd = active.selectionEnd; }
+      } catch (e) {}
+
+      renderScreen(root);
+
+      root.querySelectorAll('[data-keep-scroll]').forEach(el => {
+        const saved = innerScrolls[el.dataset.keepScroll];
+        if (saved != null) el.scrollTop = saved;
+      });
+      if (focusId) {
+        const el = document.getElementById(focusId);
+        if (el) {
+          el.focus({ preventScroll: true });
+          try { if (selStart != null) el.setSelectionRange(selStart, selEnd); } catch (e) {}
+        }
+      }
+      window.scrollTo(0, screenChanged ? 0 : scrollY);
+      paintTimer(lastDisplaySeconds);
+    }
+
+    function renderScreen(root) {
       let headerHTML = `
         <header class="bg-orange-100 border-b-4 border-orange-200 shadow-sm sticky top-0 z-40">
           <div class="max-w-6xl mx-auto px-4 py-3.5 flex flex-wrap justify-between items-center gap-2">
@@ -572,7 +770,7 @@
 
       if (state.activeTab === 'about') {
         root.innerHTML = headerHTML + `
-          <div class="max-w-4xl mx-auto my-6 p-6 bg-white rounded-3xl border-4 border-orange-200 shadow-xl mx-4 animate-scale-up">
+          <div class="max-w-4xl mx-auto my-6 p-6 bg-white rounded-3xl border-4 border-orange-200 shadow-xl mx-4 ${screenAnim}">
             <h2 class="text-2xl font-black text-orange-950 mb-4 flex items-center">
               <span class="text-3xl mr-2">📚</span> 자원의 희소성과 선택이란?
             </h2>
@@ -604,7 +802,7 @@
 
       if (!state.currentRoomId) {
         bodyContentHTML = `
-          <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 my-6 items-center max-w-6xl w-full mx-auto p-4 animate-scale-up">
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 my-6 items-center max-w-6xl w-full mx-auto p-4 ${screenAnim}">
             <div class="lg:col-span-7 space-y-6 text-center lg:text-left">
               <div class="inline-block bg-orange-100 text-orange-900 px-4 py-1.5 rounded-full text-xs font-black tracking-widest uppercase border border-orange-200">
                 초등학교 4학년 사회 단원 연계 피자 놀이교실 🍕
@@ -632,7 +830,7 @@
                   </div>
                   <div>
                     <label class="block text-xs font-bold text-slate-500 mb-1">자신의 실명 이름</label>
-                    <input type="text" id="studentNameField" placeholder="예: 이몽룡" value="${state.studentName}" oninput="window.updateStateField('studentName', this.value)" class="w-full px-4 py-3 bg-orange-50/20 rounded-2xl border-2 border-orange-100 focus:border-orange-400 focus:outline-none font-bold text-slate-800 text-sm">
+                    <input type="text" id="studentNameField" placeholder="예: 이몽룡" value="${state.studentName}" oninput="window.updateStateField('studentName', this.value)" class="w-full px-4 py-3 bg-orange-50/20 rounded-2xl border-2 border-orange-100 focus:border-orange-400 focus:outline-none font-bold text-slate-800 text-base">
                   </div>
                   <button onclick="window.handleJoinRoom()" class="w-full py-3.5 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-black shadow-lg shadow-orange-200 transform active:scale-95 transition-all text-sm">
                     피자 클래스룸 입장 🚪
@@ -665,7 +863,7 @@
         const defaultSec = currentDuration % 60;
 
         bodyContentHTML = `
-          <div class="space-y-6 max-w-6xl w-full mx-auto p-4 animate-scale-up">
+          <div class="space-y-6 max-w-6xl w-full mx-auto p-4 ${screenAnim}">
             <div class="bg-white rounded-3xl border-4 border-orange-200 p-6 shadow-md grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
               <div class="md:col-span-5 space-y-2">
                 <div class="flex items-center space-x-2">
@@ -895,7 +1093,7 @@
         `;
       } else if (state.role === 'student') {
         bodyContentHTML = `
-          <div class="space-y-6 max-w-6xl w-full mx-auto p-4 animate-scale-up">
+          <div class="space-y-6 max-w-6xl w-full mx-auto p-4 ${screenAnim}">
             <div class="bg-white rounded-3xl border-4 border-orange-200 p-5 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div class="space-y-1">
                 <div class="flex items-center space-x-1.5">
@@ -903,9 +1101,9 @@
                   <span class="text-[9px] bg-orange-200 text-orange-950 font-black px-2 py-0.5 rounded-full">STUDENT</span>
                 </div>
                 <h3 class="text-xs font-bold text-slate-500">
-                  ${state.roomData?.status === 'making' ? '나의 최대 재료비 범위 내에서 피자 재료를 선택하고, 도우 위 토핑들을 드래그해 예쁘게 기획해 보세요!' : ''}
-                  ${state.roomData?.status === 'selling' ? '친구들의 익명 피자 상점을 찾아보세요! 예산이 허용하는 한 여러 판을 동시에 마음껏 살 수 있습니다!' : ''}
-                  ${state.roomData?.status === 'ranking' ? '마켓 마감 완료! 과연 우리반 학생 피자 중 가장 인기가 높은 베스트 피자는?' : ''}
+                  ${state.roomData?.status === 'making' ? `30,000원 안에서 재료를 골라 나만의 피자를 만들어요!` : ''}
+                  ${state.roomData?.status === 'selling' ? '50,000원 안에서 사고 싶은 친구 피자를 골라요! 여러 판 살 수 있어요.' : ''}
+                  ${state.roomData?.status === 'ranking' ? '마켓이 끝났어요! 가장 인기 있었던 피자는?' : ''}
                 </h3>
               </div>
               <div class="flex flex-wrap gap-3 items-center text-xs w-full md:w-auto">
@@ -924,106 +1122,35 @@
                   </div>
                 ` : ''}
 
-                ${state.roomData?.status === 'making' ? `
-                  <span class="bg-orange-100 text-orange-950 border border-orange-300 font-extrabold px-3 py-1.5 rounded-xl">🛠️ 내 피자 최대 예산 한도: ₩${MAX_MAKING_BUDGET.toLocaleString()}</span>
-                ` : ''}
                 ${state.roomData?.status === 'selling' ? `
-                  <span class="bg-emerald-100 text-emerald-950 border border-emerald-300 font-extrabold px-3 py-1.5 rounded-xl">🛍️ 현재 내 쇼핑 예산 잔액: ₩${state.buyerWallet.toLocaleString()}</span>
+                  <span class="bg-emerald-100 text-emerald-950 border-2 border-emerald-300 font-black px-4 py-2 rounded-xl text-base">👛 남은 돈: ₩${state.buyerWallet.toLocaleString()}</span>
                 ` : ''}
               </div>
             </div>
 
             <!-- 1단계: 피자 만들기 모드 -->
-            ${state.roomData?.status === 'making' ? `
-              <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                <div class="lg:col-span-5 bg-white rounded-3xl border-4 border-orange-200 p-6 shadow-md flex flex-col items-center space-y-6">
-                  <h3 class="font-black text-slate-800 text-base">🍕 내 오븐 피자 굽기 모형 (드래그하여 자유 배치)</h3>
-                  
-                  ${getPizzaVisualizerHTML(state.selectedIngredients, 'large', true)}
-                  
-                  ${getSidesTrayHTML(state.selectedIngredients, 'large')}
-
-                  <div class="w-full bg-orange-50/50 p-4 rounded-2xl border-2 border-orange-100 space-y-2 text-xs">
-                    <div class="flex justify-between font-bold text-slate-600">
-                      <span>💰 현재 피자 토핑 재료비 총합:</span>
-                      <span class="text-orange-950 font-black text-sm">₩${getIngredientsTotalPrice(state.selectedIngredients).toLocaleString()}</span>
-                    </div>
-                    <div class="flex justify-between font-bold text-slate-600 border-t border-dashed border-orange-200 pt-2">
-                      <span>🏷️ 피자 최종 시장 판매 가격:</span>
-                      <span class="text-orange-600 font-extrabold text-sm">₩${getIngredientsTotalPrice(state.selectedIngredients).toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="lg:col-span-7 bg-white rounded-3xl border-4 border-orange-200 p-6 shadow-md space-y-6">
-                  <div class="space-y-2">
-                    <h3 class="text-lg font-black text-slate-800">🏪 가상 토핑 연구 보관소</h3>
-                    <p class="text-xs text-slate-500">최대 재료비 예산 <strong>${MAX_MAKING_BUDGET.toLocaleString()}원</strong> 범위 안에서 토핑을 중복해서 자유롭게 늘리거나 뺄 수 있습니다. 소스/음료는 피자 위에 올리지 않고 사이드 트레이에 보존됩니다.</p>
-                  </div>
-                  ${!state.hasSubmitted ? `
-                    <div class="space-y-5">
-                      <div>
-                        <label class="block text-xs font-black text-slate-600 mb-1.5">🍕 내 피자 요리 이름 공모</label>
-                        <input type="text" id="pizzaNameField" placeholder="예: 초호화 명품 한우 치즈 갈릭피자" value="${state.pizzaName}" oninput="window.updateStateField('pizzaName', this.value)" class="w-full px-4 py-3 bg-orange-50/20 rounded-xl border-2 border-orange-100 focus:border-orange-400 focus:outline-none font-bold text-sm text-slate-800">
-                      </div>
-                      <div>
-                        <label class="block text-xs font-black text-slate-600 mb-2">🛒 사용할 재료의 수량을 터치하여 조정해 보세요 (한 세트당 토핑 6개가 피자 도우 위에 예쁘게 배치됩니다!)</label>
-                        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-[300px] overflow-y-auto pr-1">
-                          ${INGREDIENTS.map(ing => {
-                            // 시각적(isVisual) 복사본을 무시하고 실제 등록된 세트 개수만 계산
-                            const count = state.selectedIngredients.filter(item => item.id === ing.id && !item.isVisual).length;
-                            return `
-                              <div class="p-2.5 rounded-xl border-2 flex flex-col justify-between items-center transition-all text-center space-y-1.5 ${count > 0 ? 'bg-orange-50/50 border-orange-400' : 'bg-slate-50 border-slate-100'}">
-                                <span class="text-2xl">${ing.emoji}</span>
-                                <div class="text-[10px] leading-tight">
-                                  <span class="font-extrabold block truncate text-slate-800">${ing.name}</span>
-                                  <span class="text-rose-500 font-semibold block">₩${ing.price.toLocaleString()}</span>
-                                </div>
-                                <div class="flex items-center space-x-1.5 pt-1">
-                                  <button onclick="window.removeIngredient('${ing.id}')" ${count === 0 ? 'disabled' : ''} class="w-6 h-6 rounded-full flex items-center justify-center font-black text-xs ${count > 0 ? 'bg-orange-200 text-orange-900 hover:bg-orange-300' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}">-</button>
-                                  <span class="text-xs font-black w-4 text-center">${count}</span>
-                                  <button onclick="window.addIngredient('${ing.id}')" class="w-6 h-6 rounded-full bg-orange-500 hover:bg-orange-600 text-white font-black flex items-center justify-center text-xs">+</button>
-                                </div>
-                              </div>
-                            `;
-                          }).join('')}
-                        </div>
-                      </div>
-                      <div class="pt-2">
-                        <button onclick="window.handleSubmitPizza()" class="w-full py-4 bg-orange-500 hover:bg-orange-600 text-white font-black rounded-2xl shadow-lg shadow-orange-200 transform hover:scale-[1.01] active:scale-95 transition-all text-sm">🍽️ 피자 상점에 등록 판매하기</button>
-                      </div>
-                    </div>
-                  ` : `
-                    <div class="text-center py-12 space-y-4">
-                      <span class="text-6xl animate-bounce inline-block">🍕</span>
-                      <h4 class="text-lg font-black text-slate-800">나만의 피자가 성공적으로 제출 완료되었습니다!</h4>
-                      <p class="text-xs text-slate-500 leading-relaxed max-w-md mx-auto">선생님께서 피자 마켓을 오픈해주시면, 친구들이 기획한 다양한 피자들을 잔액 범위에서 익명으로 탐색하며 쇼핑을 시작할 수 있습니다. 잠시만 대기해 주세요!</p>
-                    </div>
-                  `}
-                </div>
-              </div>
-            ` : ''}
+            ${state.roomData?.status === 'making' ? getMakingStageHTML() : ''}
 
             <!-- 2단계: 피자 판매 모드 -->
             ${state.roomData?.status === 'selling' ? `
               <div class="space-y-6">
-                <div class="bg-gradient-to-r from-orange-500 to-amber-500 rounded-3xl p-6 text-white shadow-md space-y-3">
-                  <div class="flex items-center space-x-2">
-                    <span class="text-2xl">🛍️</span>
-                    <h3 class="text-lg font-black">자율 피자 트레이딩 시장 개방 (용돈 잔고: ₩${state.buyerWallet.toLocaleString()} / ₩${MAX_BUYING_BUDGET.toLocaleString()})</h3>
+                <div class="bg-gradient-to-r from-orange-500 to-amber-500 rounded-3xl p-5 text-white shadow-md space-y-3">
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <h3 class="text-xl font-black">🛍️ 피자 마켓이 열렸어요!</h3>
+                    <span class="text-lg font-black bg-white/20 px-3 py-1 rounded-xl">👛 ₩${state.buyerWallet.toLocaleString()} / ₩${MAX_BUYING_BUDGET.toLocaleString()}</span>
                   </div>
-                  <p class="text-xs md:text-sm leading-relaxed opacity-95">친구들이 아이디어를 내 출시한 수많은 피자들이 모두 익명으로 정렬되어 있습니다. 용돈 범위 내에서 최고의 피자와 사이드를 골라 담아보세요!</p>
+                  <div class="w-full h-3 bg-white/30 rounded-full overflow-hidden">
+                    <div class="h-full bg-white rounded-full transition-all duration-300" style="width: ${Math.max(0, (state.buyerWallet / MAX_BUYING_BUDGET) * 100)}%"></div>
+                  </div>
+                  <p class="text-sm leading-relaxed opacity-95">누가 만들었는지는 비밀이에요. 가격과 재료를 비교해 보고 사고 싶은 피자를 골라요!</p>
                 </div>
 
                 <div class="space-y-4">
-                  <div class="flex justify-between items-center">
-                    <h3 class="text-base font-black text-slate-800">🛒 피자 매대 쇼핑하기 (${state.pizzas.length}판의 다양한 피자 등록됨)</h3>
-                    <span class="text-xs text-orange-600 bg-orange-100 border border-orange-200 px-3 py-1 rounded-full font-bold">전체 익명 무명전</span>
-                  </div>
+                  <h3 class="text-lg font-black text-slate-800">🛒 피자 고르기 (${state.pizzas.length}판)</h3>
                   ${state.pizzas.length === 0 ? `
                     <div class="bg-white rounded-3xl p-12 text-center text-slate-400 text-xs border-2 border-slate-100">현재 시장에 진열된 피자가 없습니다.</div>
                   ` : `
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                       ${state.pizzas.map(pizza => {
                         const isMine = pizza.creatorId === state.studentSessionId;
                         const myPurchaseCount = state.purchasedPizzas.filter(id => id === pizza.id).length;
@@ -1032,38 +1159,29 @@
                           <div class="bg-white rounded-3xl border-4 p-5 flex flex-col justify-between space-y-4 shadow-md transition-all relative ${isMine ? 'border-orange-300 bg-orange-50/10 opacity-85' : 'border-slate-100 hover:border-orange-300'}">
                             ${isMine ? `<span class="absolute top-4 right-4 bg-orange-200 text-orange-950 text-[10px] font-black px-2.5 py-1 rounded-full z-30">내가 만든 피자</span>` : ''}
                             
-                            <div class="grid grid-cols-12 gap-3 items-center">
-                              <div class="col-span-5 flex justify-center">
-                                ${getPizzaVisualizerHTML(pizza.toppingPositions || pizza.ingredients, 'small')}
+                            <div class="flex gap-3 items-center">
+                              <div class="shrink-0 flex justify-center">
+                                ${getPizzaVisualizerHTML(pizza.toppingPositions || pizza.ingredients, 'medium')}
                               </div>
-                              <div class="col-span-7 space-y-1.5 text-left">
-                                <span class="text-[9px] bg-slate-100 text-slate-600 font-black px-2 py-0.5 rounded-full">🧑‍🍳 비밀 셰프의 걸작</span>
-                                <h4 class="text-sm font-black text-slate-800 leading-tight truncate">${pizza.name}</h4>
+                              <div class="flex-1 min-w-0 space-y-2 text-left">
+                                <h4 class="text-base font-black text-slate-800 leading-tight break-keep pr-16">${pizza.name}</h4>
+                                <p class="text-2xl font-black text-orange-600">₩${pizza.price.toLocaleString()}</p>
                                 ${getSidesTrayHTML(pizza.toppingPositions || pizza.ingredients, 'small')}
                               </div>
                             </div>
 
-                            <div class="border-t border-dashed border-slate-100 pt-3 flex justify-between items-center text-xs">
-                              <div>
-                                <p class="text-slate-400 font-bold">내가 구매한 수량</p>
-                                <p class="text-emerald-600 font-black text-sm">총 ${myPurchaseCount}판</p>
-                              </div>
-                              <div class="text-right">
-                                <p class="text-slate-400 font-bold">한 판당 가격</p>
-                                <p class="text-orange-600 font-extrabold text-sm">₩${pizza.price.toLocaleString()}</p>
-                              </div>
-                            </div>
-                            <div class="pt-2">
+                            <div>
                               ${isMine ? `
-                                <button disabled class="w-full py-2 bg-slate-100 text-slate-400 rounded-xl text-xs font-bold cursor-not-allowed">내가 만든 피자는 직접 구매가 불가합니다</button>
+                                <button disabled class="w-full py-3 bg-slate-100 text-slate-400 rounded-xl text-sm font-bold">내가 만든 피자는 살 수 없어요</button>
                               ` : `
-                                <div class="flex space-x-2">
-                                  <button onclick="window.handleBuyPizza('${pizza.id}')" ${!canAfford ? 'disabled' : ''} class="flex-grow py-2.5 rounded-xl text-xs font-black shadow-sm transition-all ${canAfford ? 'bg-orange-600 hover:bg-orange-700 text-white' : 'bg-slate-100 text-slate-400 cursor-not-allowed'}">
-                                    ${canAfford ? '🛒 피자 1판 구매하기' : '💸 돈이 부족해요'}
-                                  </button>
+                                <div class="flex items-center gap-2">
                                   ${myPurchaseCount > 0 ? `
-                                    <button onclick="window.handleRefundPizza('${pizza.id}')" class="px-3.5 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-xs font-bold transition-all border border-red-200">취소</button>
+                                    <button onclick="window.handleRefundPizza('${pizza.id}')" aria-label="1판 취소" class="w-12 h-12 shrink-0 bg-red-50 active:bg-red-100 text-red-600 rounded-xl text-2xl font-black border-2 border-red-200">−</button>
+                                    <span class="w-14 shrink-0 text-center text-emerald-600 font-black text-base">${myPurchaseCount}판</span>
                                   ` : ''}
+                                  <button onclick="window.handleBuyPizza('${pizza.id}')" ${!canAfford ? 'disabled' : ''} class="flex-grow h-12 rounded-xl text-base font-black shadow-sm transition-all ${canAfford ? 'bg-orange-600 active:bg-orange-700 text-white' : 'bg-slate-100 text-slate-400'}">
+                                    ${canAfford ? '🛒 1판 사기' : '💸 돈이 부족해요'}
+                                  </button>
                                 </div>
                               `}
                             </div>
@@ -1096,7 +1214,153 @@
         `;
       }
 
-      root.innerHTML = headerHTML + bodyContentHTML + getFooterHTML() + getAlertModalHTML() + getQuizModalHTML();
+      root.innerHTML = headerHTML + bodyContentHTML + getFooterHTML() + getAlertModalHTML() + getQuizModalHTML() + getConfirmResetModalHTML() + getToastHTML();
+    }
+
+    function escapeAttr(str) {
+      return String(str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    }
+
+    // 1단계: 피자 만들기 화면 (태블릿 세로에서도 피자와 재료가 나란히 보이도록 md 기준 2단 배치)
+    function getMakingStageHTML() {
+      const spent = getIngredientsTotalPrice(state.selectedIngredients);
+      const left = MAX_MAKING_BUDGET - spent;
+      const pct = Math.min(100, (spent / MAX_MAKING_BUDGET) * 100);
+      const tab = INGREDIENT_TABS.find(t => t.id === state.ingredientTab) || INGREDIENT_TABS[0];
+      // 시각적(isVisual) 복사본을 무시하고 실제 등록된 세트 개수만 계산
+      const countOf = (ingId) => state.selectedIngredients.filter(item => item.id === ingId && !item.isVisual).length;
+
+      const pizzaPanelHTML = `
+        <div class="md:col-span-5 md:sticky md:top-24 bg-white rounded-3xl border-4 border-orange-200 p-4 md:p-5 shadow-md flex flex-col items-center space-y-4">
+          <div class="text-center">
+            <h3 class="font-black text-slate-800 text-lg">🍕 내 피자</h3>
+            ${!state.hasSubmitted ? `<p class="text-xs font-bold text-slate-400 mt-0.5">토핑을 손가락으로 끌어서 옮길 수 있어요</p>` : ''}
+          </div>
+
+          ${getPizzaVisualizerHTML(state.selectedIngredients, 'large', !state.hasSubmitted)}
+
+          <div class="w-full bg-orange-50 p-3 rounded-2xl border-2 border-orange-100 space-y-2">
+            <div class="flex justify-between items-end">
+              <span class="text-sm font-black text-slate-600">💰 내 피자 가격</span>
+              <span class="text-2xl font-black text-orange-600">₩${spent.toLocaleString()}</span>
+            </div>
+            <div class="w-full h-3 bg-white rounded-full overflow-hidden border border-orange-200">
+              <div class="h-full rounded-full transition-all duration-300 ${pct >= 90 ? 'bg-red-500' : 'bg-orange-400'}" style="width: ${pct}%"></div>
+            </div>
+            <div class="flex flex-wrap justify-between gap-x-3 text-xs font-bold text-slate-500">
+              <span>재료비 = 판매 가격</span>
+              <span>남은 돈 <span class="font-black ${left < 3000 ? 'text-red-600' : 'text-emerald-600'}">₩${left.toLocaleString()}</span> / ₩${MAX_MAKING_BUDGET.toLocaleString()}</span>
+            </div>
+          </div>
+
+          ${getSidesTrayHTML(state.selectedIngredients, 'large')}
+
+          ${!state.hasSubmitted ? `
+            <button onclick="window.askResetToppings()" ${state.selectedIngredients.length === 0 ? 'disabled' : ''} class="w-full py-3 rounded-2xl border-2 font-black text-sm transition-all ${state.selectedIngredients.length === 0 ? 'bg-slate-50 border-slate-100 text-slate-300' : 'bg-white border-slate-200 text-slate-600 active:bg-slate-100'}">
+              🔄 재료 모두 빼기
+            </button>
+          ` : ''}
+        </div>
+      `;
+
+      if (state.hasSubmitted) {
+        return `
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
+            ${pizzaPanelHTML}
+            <div class="md:col-span-7 bg-white rounded-3xl border-4 border-orange-200 p-6 shadow-md text-center py-12 space-y-4">
+              <span class="text-6xl animate-bounce inline-block">🍕</span>
+              <h4 class="text-xl font-black text-slate-800">피자를 가게에 내놓았어요!</h4>
+              <p class="text-sm text-slate-500 leading-relaxed max-w-md mx-auto">선생님이 마켓을 열면 친구들의 피자를 살 수 있어요.<br>기다리는 동안 경제 퀴즈를 풀어 보세요!</p>
+              <button onclick="window.restartQuiz()" class="px-6 py-3.5 bg-orange-500 active:bg-orange-600 text-white font-black rounded-2xl shadow-md text-base">
+                💡 경제 퀴즈 ${state.quizIndex >= QUIZ_QUESTIONS.length ? '다시 풀기' : '풀기'}
+              </button>
+              ${state.quizIndex >= QUIZ_QUESTIONS.length ? `
+                <p class="text-sm font-black text-emerald-600">지난 점수: ${QUIZ_QUESTIONS.length}문제 중 ${state.quizCorrectCount}문제 정답</p>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
+          ${pizzaPanelHTML}
+
+          <div class="md:col-span-7 bg-white rounded-3xl border-4 border-orange-200 p-4 md:p-5 shadow-md space-y-5">
+            <div>
+              <label for="pizzaNameField" class="block text-base font-black text-slate-800 mb-2">① 피자 이름 짓기</label>
+              <input type="text" id="pizzaNameField" maxlength="30" placeholder="예: 한우 치즈 듬뿍 피자" value="${escapeAttr(state.pizzaName)}" oninput="window.updateStateField('pizzaName', this.value)" class="w-full px-4 py-3 bg-orange-50/20 rounded-xl border-2 border-orange-100 focus:border-orange-400 focus:outline-none font-bold text-base text-slate-800">
+            </div>
+
+            <div>
+              <p class="text-base font-black text-slate-800 mb-2">② 재료 고르기</p>
+              <div class="flex flex-wrap gap-2 mb-3">
+                ${INGREDIENT_TABS.map(t => {
+                  const n = INGREDIENTS.filter(i => i.category === t.id).reduce((sum, i) => sum + countOf(i.id), 0);
+                  const isActive = t.id === tab.id;
+                  return `
+                    <button onclick="window.setIngredientTab('${t.id}')" class="relative px-3.5 py-2.5 rounded-xl text-sm font-black border-2 transition-all ${isActive ? 'bg-orange-500 border-orange-500 text-white shadow-md' : 'bg-white border-orange-100 text-slate-600 active:bg-orange-50'}">
+                      ${t.emoji} ${t.label}
+                      ${n > 0 ? `<span class="absolute -top-2 -right-2 min-w-[20px] h-5 px-1 rounded-full bg-emerald-500 text-white text-[11px] leading-5 text-center">${n}</span>` : ''}
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+              <p class="text-xs font-bold text-orange-700 bg-orange-50 rounded-lg px-3 py-2 mb-3">💡 ${tab.hint}</p>
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                ${INGREDIENTS.filter(ing => ing.category === tab.id).map(ing => {
+                  const count = countOf(ing.id);
+                  const canAdd = spent + ing.price <= MAX_MAKING_BUDGET;
+                  return `
+                    <div class="p-3 rounded-2xl border-2 flex flex-col justify-between items-center text-center space-y-2 ${count > 0 ? 'bg-orange-50 border-orange-400' : 'bg-slate-50 border-slate-100'}">
+                      <span class="text-4xl leading-none">${ing.emoji}</span>
+                      <div class="leading-tight">
+                        <span class="font-black block text-sm text-slate-800 break-keep">${ing.name}</span>
+                        <span class="text-rose-500 font-black block text-sm mt-0.5">₩${ing.price.toLocaleString()}</span>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <button onclick="window.removeIngredient('${ing.id}')" ${count === 0 ? 'disabled' : ''} aria-label="${ing.name} 빼기" class="w-10 h-10 rounded-full flex items-center justify-center font-black text-xl ${count > 0 ? 'bg-orange-200 text-orange-900 active:bg-orange-300' : 'bg-slate-200 text-slate-400'}">−</button>
+                        <span class="text-lg font-black w-6 text-center">${count}</span>
+                        <button onclick="window.addIngredient('${ing.id}')" aria-label="${ing.name} 담기" class="w-10 h-10 rounded-full text-white font-black flex items-center justify-center text-xl ${canAdd ? 'bg-orange-500 active:bg-orange-600' : 'bg-slate-300'}">+</button>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+
+            <div class="pt-1">
+              <p class="text-base font-black text-slate-800 mb-2">③ 다 만들었으면 가게에 내놓기</p>
+              <button onclick="window.handleSubmitPizza()" class="w-full py-4 bg-orange-500 active:bg-orange-600 text-white font-black rounded-2xl shadow-lg shadow-orange-200 active:scale-95 transition-all text-lg">🍽️ 피자 가게에 내놓기</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function getConfirmResetModalHTML() {
+      if (!state.confirmReset) return '';
+      return `
+        <div class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div class="bg-white rounded-3xl border-4 border-amber-300 max-w-sm w-full p-6 shadow-xl text-center space-y-4 ${modalAnim}">
+            <span class="text-4xl inline-block">🔄</span>
+            <p class="text-slate-700 font-black text-base leading-relaxed">담은 재료를 모두 뺄까요?<br><span class="text-sm text-slate-400">피자 이름은 그대로 남아요.</span></p>
+            <div class="flex gap-2">
+              <button onclick="window.cancelResetToppings()" class="flex-1 py-3 bg-slate-100 active:bg-slate-200 text-slate-600 font-black rounded-xl text-base">취소</button>
+              <button onclick="window.confirmResetToppings()" class="flex-1 py-3 bg-red-500 active:bg-red-600 text-white font-black rounded-xl text-base">모두 빼기</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function getToastHTML() {
+      if (!state.toastMessage) return '';
+      return `
+        <div class="fixed bottom-6 left-1/2 z-[60] max-w-[90vw] bg-slate-800/95 text-white font-black text-sm px-5 py-3 rounded-2xl shadow-xl animate-toast pointer-events-none" style="transform: translateX(-50%);">
+          ${state.toastMessage}
+        </div>
+      `;
     }
 
     function getRankPodiumHTML() {
@@ -1168,7 +1432,7 @@
     function getFooterHTML() {
       return `
         <footer class="mt-auto py-6 border-t border-orange-200 bg-orange-50 text-center text-xs text-orange-950/60 font-semibold font-mono">
-          <p>초등학교 사회과 4학년 실습 가상 피자 마켓 시뮬레이션 v1.3</p>
+          <p>초등학교 사회과 4학년 실습 가상 피자 마켓 시뮬레이션 v1.4</p>
           <p class="mt-1">한정된 자원으로 최고의 피자를 만들어 보세요!</p>
         </footer>
       `;
@@ -1178,7 +1442,7 @@
       if (!state.alertMessage) return '';
       return `
         <div class="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div class="bg-white rounded-3xl border-4 border-amber-300 max-w-sm w-full p-6 shadow-xl text-center space-y-4 animate-scale-up">
+          <div class="bg-white rounded-3xl border-4 border-amber-300 max-w-sm w-full p-6 shadow-xl text-center space-y-4 ${modalAnim}">
             <span class="text-4xl inline-block">🍕</span>
             <p class="text-slate-700 font-black text-sm leading-relaxed">${state.alertMessage}</p>
             <button onclick="window.closeAlert()" class="px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white font-black rounded-xl text-xs transition-all shadow-md">확인</button>
@@ -1187,41 +1451,78 @@
       `;
     }
 
+    // 피자 제출 후 한 문제씩 풀어보는 경제 퀴즈 (고른 답은 바꿀 수 없고, 바로 해설이 나옴)
     function getQuizModalHTML() {
-      if (state.activeQuiz !== 'making') return '';
-      return `
-        <div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div class="bg-white rounded-3xl border-4 border-orange-300 max-w-md w-full p-6 shadow-2xl space-y-4 animate-scale-up">
-            <div class="flex items-center space-x-2 text-orange-600">
-              <span class="text-3xl">💡</span>
-              <h4 class="text-lg font-black">피자 기획 제출 완료! 경제 성찰 퀴즈</h4>
-            </div>
-            <p class="text-xs md:text-sm text-slate-600 leading-relaxed font-semibold">
-              피자를 성실하게 기획해 보았습니다. <strong>"내가 좋아하는 가장 최고급 재료들을 예산 한도(30,000원) 걱정 없이 가득 담아 제출하지 못한 이유"</strong>는 무엇일까요?
-            </p>
-            <div class="space-y-2">
-              <button onclick="window.submitQuizAnswer('A')" class="w-full p-3 text-left text-xs font-bold rounded-xl border-2 transition-all ${state.makingQuizAnswer === 'A' ? 'bg-orange-50 border-orange-500 text-orange-700' : 'bg-slate-50 hover:bg-slate-100 border-slate-100'}">
-                🔴 A. 요리 기계가 작동 도중 오작동을 일으켰기 때문이다.
-              </button>
-              <button onclick="window.submitQuizAnswer('B')" class="w-full p-3 text-left text-xs font-bold rounded-xl border-2 transition-all ${state.makingQuizAnswer === 'B' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-slate-50 hover:bg-slate-100 border-slate-100'}">
-                🟢 B. 예산(돈), 시간, 재료라는 자원이 희소하기 때문이다.
-              </button>
-            </div>
-            ${state.makingQuizAnswer ? `
-              <div class="p-3 rounded-xl bg-orange-50 border border-orange-200 text-xs leading-relaxed text-orange-950">
-                ${state.makingQuizAnswer === 'B' ? `
-                  <p>🎉 <strong>참 잘했습니다!</strong> 자원의 한계가 정해져 있어 모든 필요와 욕구를 다 채울 수 없는 법칙을 '자원의 희소성'이라고 배웁니다. 이를 다지는 유익한 실습 시간이 되었기를 바래요!</p>
-                ` : `
-                  <p>😢 <strong>틀렸습니다!</strong> 기계 크기 문제가 아닌, 돈, 시간, 재료라는 희소한 자원이 원인입니다. 다시 한번 신중히 복습해 보세요!</p>
-                `}
-              </div>
-            ` : ''}
-            <div class="pt-2 text-right">
-              <button onclick="window.closeQuizModal()" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-black rounded-xl text-xs transition-all">이해 완료! 상점 대기방 가기</button>
-            </div>
+      if (state.activeQuiz !== 'making' || state.roomData?.status !== 'making') return '';
+      const total = QUIZ_QUESTIONS.length;
+      const wrap = (inner) => `
+        <div class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div class="bg-white rounded-3xl border-4 border-orange-300 max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl space-y-4 ${modalAnim}">
+            ${inner}
           </div>
         </div>
       `;
+
+      if (state.quizIndex >= total) {
+        const score = state.quizCorrectCount;
+        const msg = score === total ? '모두 맞혔어요! 경제 박사네요 🎓' : score >= total - 2 ? '아주 잘했어요! 👍' : '해설을 다시 읽어 보면 더 잘할 수 있어요! 💪';
+        return wrap(`
+          <div class="text-center space-y-3 py-2">
+            <span class="text-6xl inline-block">🏅</span>
+            <h4 class="text-2xl font-black text-slate-800">${total}문제 중 <span class="text-orange-600">${score}문제</span> 맞혔어요!</h4>
+            <p class="text-base font-bold text-slate-500">${msg}</p>
+          </div>
+          <div class="flex gap-2 pt-2">
+            <button onclick="window.restartQuiz()" class="flex-1 py-3.5 bg-orange-100 active:bg-orange-200 text-orange-800 font-black rounded-xl text-base">🔁 다시 풀기</button>
+            <button onclick="window.closeQuizModal()" class="flex-1 py-3.5 bg-slate-800 active:bg-slate-900 text-white font-black rounded-xl text-base">닫기</button>
+          </div>
+        `);
+      }
+
+      const quiz = QUIZ_QUESTIONS[state.quizIndex];
+      const answered = state.quizChoice !== null;
+      const isLast = state.quizIndex === total - 1;
+
+      return wrap(`
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2 text-orange-600">
+            <span class="text-2xl">💡</span>
+            <h4 class="text-lg font-black">경제 퀴즈</h4>
+          </div>
+          <span class="text-sm font-black text-slate-500 bg-slate-100 px-3 py-1 rounded-full">${state.quizIndex + 1} / ${total}</span>
+        </div>
+        <div class="flex gap-1">
+          ${QUIZ_QUESTIONS.map((_, i) => `<div class="h-1.5 flex-1 rounded-full ${i <= state.quizIndex ? 'bg-orange-400' : 'bg-slate-200'}"></div>`).join('')}
+        </div>
+        <p class="text-lg text-slate-800 leading-relaxed font-black break-keep">Q${state.quizIndex + 1}. ${quiz.q}</p>
+        <div class="space-y-2">
+          ${quiz.options.map((opt, i) => {
+            let cls = 'bg-slate-50 border-slate-200 text-slate-700 active:bg-orange-50';
+            let mark = ['①', '②', '③', '④'][i];
+            if (answered) {
+              if (i === quiz.answer) { cls = 'bg-emerald-50 border-emerald-500 text-emerald-800'; mark = '⭕'; }
+              else if (i === state.quizChoice) { cls = 'bg-red-50 border-red-400 text-red-700'; mark = '❌'; }
+              else { cls = 'bg-slate-50 border-slate-100 text-slate-400'; }
+            }
+            return `
+              <button onclick="window.submitQuizAnswer(${i})" ${answered ? 'disabled' : ''} class="w-full p-4 text-left text-base font-bold rounded-2xl border-2 transition-all flex gap-2 ${cls}">
+                <span class="shrink-0">${mark}</span><span class="break-keep">${opt}</span>
+              </button>
+            `;
+          }).join('')}
+        </div>
+        ${answered ? `
+          <div class="p-4 rounded-2xl ${state.quizChoice === quiz.answer ? 'bg-emerald-50 border-emerald-200' : 'bg-orange-50 border-orange-200'} border-2 text-base leading-relaxed text-slate-700 break-keep">
+            <p class="font-black mb-1">${state.quizChoice === quiz.answer ? '🎉 정답이에요!' : '😢 아쉬워요!'}</p>
+            <p>${quiz.explain}</p>
+          </div>
+          <button onclick="window.nextQuiz()" class="w-full py-3.5 bg-orange-500 active:bg-orange-600 text-white font-black rounded-xl text-base">
+            ${isLast ? '🏅 결과 보기' : '다음 문제 ➡️'}
+          </button>
+        ` : `
+          <p class="text-center text-sm font-bold text-slate-400">알맞은 답을 눌러 보세요</p>
+        `}
+      `);
     }
 
     // ==========================================
@@ -1235,7 +1536,7 @@
       const currentCost = getIngredientsTotalPrice(state.selectedIngredients);
 
       if (currentCost + ing.price > MAX_MAKING_BUDGET) {
-        showAlert(`💸 앗! 재료비 한도(${MAX_MAKING_BUDGET.toLocaleString()}원)를 초과할 수 없습니다! 모든 고급 재료를 원하는 만큼 제한 없이 쓸 수 없는 현상을 '자원의 희소성'이라고 합니다. 다른 토핑을 빼거나 예산에 맞는 똑똑한 레시피를 만들어보세요.`);
+        showAlert(`💸 앗! 돈이 모자라요.<br>재료비는 ${MAX_MAKING_BUDGET.toLocaleString()}원을 넘을 수 없어요.<br><br>원하는 재료를 모두 가질 수 없는 것,<br>이것이 바로 <span class="text-orange-600">'자원의 희소성'</span>이에요!<br>다른 재료를 빼고 다시 골라 보세요.`);
         return;
       }
 
@@ -1517,7 +1818,10 @@
 
         setState({
           hasSubmitted: true,
-          activeQuiz: 'making'
+          activeQuiz: 'making',
+          quizIndex: 0,
+          quizChoice: null,
+          quizCorrectCount: 0
         });
       } catch (err) {
         console.error(err);
@@ -1543,7 +1847,7 @@
           buyers: updatedBuyers
         });
 
-        showAlert(`🎉 '${pizza.name}' 피자를 1판 구매하였습니다!`);
+        showToast(`🎉 '${pizza.name}' 1판을 샀어요!`);
       } catch (err) {
         console.error(err);
         showAlert("구매 과정에 문제가 발생했습니다.");
@@ -1561,7 +1865,7 @@
           await updateDoc(pizzaRef, {
             buyers: buyersList
           });
-          showAlert(`💸 '${pizza.name}' 피자 구매를 1판 취소하고 환불받았습니다.`);
+          showToast(`↩️ '${pizza.name}' 1판을 취소했어요.`);
         }
       } catch (err) {
         console.error(err);
@@ -1614,7 +1918,15 @@
       const roomDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
       unsubRoom = onSnapshot(roomDocRef, (snapshot) => {
         if (snapshot.exists()) {
-          setState({ roomData: { id: snapshot.id, ...snapshot.data() } });
+          const roomData = { id: snapshot.id, ...snapshot.data() };
+          // 단계가 바뀐 경우에는 입력 중이어도 바로 화면을 바꾸고, 풀던 퀴즈·확인창도 닫음
+          const stageChanged = roomData.status !== state.roomData?.status;
+          if (stageChanged && state.roomData) {
+            if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+            setState({ roomData, activeQuiz: null, confirmReset: false });
+          } else {
+            setState({ roomData }, !stageChanged);
+          }
         } else {
           showAlert("교실이 존재하지 않거나 종료되었습니다.");
           exitRoom();
@@ -1625,7 +1937,7 @@
       unsubParticipants = onSnapshot(participantsColRef, (snapshot) => {
         const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         const filtered = list.filter(p => p.roomId === roomId);
-        setState({ participants: filtered });
+        setState({ participants: filtered }, true);
       }, (error) => console.error("참여자 명단 구독 에러:", error));
 
       const pizzasColRef = collection(db, 'artifacts', appId, 'public', 'data', 'pizzas');
@@ -1637,7 +1949,6 @@
         let hasSubmitted = state.hasSubmitted;
         let selectedIngredients = state.selectedIngredients;
         let pizzaName = state.pizzaName;
-        let makingQuizAnswer = state.makingQuizAnswer;
 
         if (myPizza) {
           hasSubmitted = true;
@@ -1649,7 +1960,6 @@
             hasSubmitted = false;
             selectedIngredients = [];
             pizzaName = '';
-            makingQuizAnswer = null;
           }
         }
 
@@ -1671,10 +1981,9 @@
           hasSubmitted,
           selectedIngredients,
           pizzaName,
-          makingQuizAnswer,
           purchasedPizzas: myPurchases,
           buyerWallet: MAX_BUYING_BUDGET - totalSpent
-        });
+        }, true);
       }, (error) => console.error("피자 마켓 구독 에러:", error));
     }
 
@@ -1767,16 +2076,43 @@
     window.handlePauseTimer = handlePauseTimer;
     window.handleResetTimer = handleResetTimer;
 
-    window.submitQuizAnswer = (ans) => {
-      setState({ makingQuizAnswer: ans });
+    window.submitQuizAnswer = (choice) => {
+      if (state.quizChoice !== null) return;
+      const quiz = QUIZ_QUESTIONS[state.quizIndex];
+      if (!quiz) return;
+      setState({
+        quizChoice: choice,
+        quizCorrectCount: state.quizCorrectCount + (choice === quiz.answer ? 1 : 0)
+      });
     };
-    
+
+    window.nextQuiz = () => {
+      setState({ quizIndex: state.quizIndex + 1, quizChoice: null });
+    };
+
+    window.restartQuiz = () => {
+      setState({ activeQuiz: 'making', quizIndex: 0, quizChoice: null, quizCorrectCount: 0 });
+    };
+
     window.closeQuizModal = () => {
-      if (!state.makingQuizAnswer) {
-        showAlert("복습 정답을 터치해서 골라보세요!");
-        return;
-      }
       setState({ activeQuiz: null });
+    };
+
+    window.setIngredientTab = (tabId) => {
+      setState({ ingredientTab: tabId });
+    };
+
+    window.askResetToppings = () => {
+      if (state.selectedIngredients.length === 0) return;
+      setState({ confirmReset: true });
+    };
+
+    window.cancelResetToppings = () => {
+      setState({ confirmReset: false });
+    };
+
+    window.confirmResetToppings = () => {
+      setState({ confirmReset: false, selectedIngredients: [] });
     };
 
     window.generatePDFReport = generatePDFReport;
